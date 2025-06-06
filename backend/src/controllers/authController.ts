@@ -3,10 +3,22 @@ import SpotifyService from '../services/SpotifyService';
 
 export const getAuthURL = (req: Request, res: Response) => {
   try {
+    console.log('🎯 Auth URL requested');
+    console.log('Request headers:', req.headers);
+    console.log('Request origin:', req.get('origin'));
+    
     const authURL = SpotifyService.getAuthURL();
+    
+    console.log('✅ Auth URL generated successfully');
+    
+    // Set CORS headers explicitly
+    res.header('Access-Control-Allow-Origin', req.get('origin') || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
     res.json({ authURL });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to generate auth URL' });
+  } catch (error: any) {
+    console.error('❌ Failed to generate auth URL:', error);
+    res.status(500).json({ error: 'Failed to generate auth URL', details: error.message });
   }
 };
 
@@ -14,9 +26,15 @@ export const handleCallback = async (req: Request, res: Response) => {
   const { code, error, state } = req.query;
   
   console.log('=== SPOTIFY CALLBACK ===');
+  console.log('Request URL:', req.url);
+  console.log('Request headers:', req.headers);
   console.log('Code:', code ? `${code}`.substring(0, 20) + '...' : 'Missing');
   console.log('Error:', error);
   console.log('State:', state);
+  
+  // Set CORS headers explicitly
+  res.header('Access-Control-Allow-Origin', req.get('origin') || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
   
   if (error) {
     console.error('Spotify authorization error:', error);
@@ -46,7 +64,8 @@ export const handleCallback = async (req: Request, res: Response) => {
     } else {
       res.status(500).json({ 
         error: 'token_exchange_failed',
-        message: 'Failed to exchange code for token'
+        message: 'Failed to exchange code for token',
+        details: error.message
       });
     }
   }

@@ -7,13 +7,18 @@ class SpotifyService {
   private accessToken: string = '';
 
   constructor() {
-    this.clientId = process.env.SPOTIFY_CLIENT_ID || '95e68bd6da33466c960d4a0a76323837';
-    this.clientSecret = process.env.SPOTIFY_CLIENT_SECRET || '792689bec07f49f3ae926747338442d4';
-    this.redirectUri = process.env.SPOTIFY_REDIRECT_URI || 'http://127.0.0.1:3000/callback';
+    this.clientId = process.env.SPOTIFY_CLIENT_ID || '';
+    this.clientSecret = process.env.SPOTIFY_CLIENT_SECRET || '';
+    this.redirectUri = process.env.SPOTIFY_REDIRECT_URI || 'https://setlist-playlist-generator-site.onrender.com/callback';
     
     console.log('🔍 Initializing Spotify Service:');
-    console.log('Client ID:', this.clientId);
+    console.log('Client ID:', this.clientId ? 'Present' : 'Missing');
+    console.log('Client Secret:', this.clientSecret ? 'Present' : 'Missing');
     console.log('Redirect URI:', this.redirectUri);
+
+    if (!this.clientId || !this.clientSecret) {
+      console.error('❌ Missing Spotify credentials');
+    }
   }
 
   getAuthURL(): string {
@@ -38,24 +43,40 @@ class SpotifyService {
 
   async getAccessToken(code: string): Promise<any> {
     try {
+      console.log('🔄 Exchanging code for token...');
+      console.log('Using redirect URI:', this.redirectUri);
+      
       const params = new URLSearchParams({
         grant_type: 'authorization_code',
         code: code,
         redirect_uri: this.redirectUri,
       });
 
+      const authHeader = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
+
       const response = await axios.post('https://accounts.spotify.com/api/token', params, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': `Basic ${Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64')}`
+          'Authorization': `Basic ${authHeader}`
         }
       });
 
+      console.log('✅ Token exchange successful');
       this.accessToken = response.data.access_token;
       return response.data;
     } catch (error: any) {
-      console.error('Error getting access token:', error.response?.data || error.message);
-      throw error;
+      console.error('❌ Token exchange failed:', error.response?.data || error.message);
+      
+      if (error.response?.data) {
+        console.error('Spotify error response:', error.response.data);
+      }
+      
+      // Re-throw with more context
+      const errorMessage = error.response?.data?.error_description || 
+                          error.response?.data?.error || 
+                          error.message;
+      
+      throw new Error(errorMessage);
     }
   }
 
