@@ -2,6 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
+
+
+
 dotenv.config();
 
 console.log('🔍 Environment Variables Loaded:');
@@ -13,20 +16,21 @@ import playlistRoutes from './routes/playlist';
 import setlistRoutes from './routes/setlist';
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3001;
+const PORT = Number(process.env.PORT) || 10000;
 
-// CORS configuration
+// Update CORS for production
 app.use(cors({
   origin: [
     'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:3001',
-    'http://127.0.0.1:3001'
+    'https://setlist-playlist-generator.onrender.com', // We'll update this with actual frontend URL
+    /\.onrender\.com$/ // Allow all onrender.com subdomains
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+}))
+
+
 
 app.use(express.json());
 
