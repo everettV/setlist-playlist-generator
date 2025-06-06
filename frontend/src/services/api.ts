@@ -3,7 +3,7 @@
 const getApiUrl = (): string => {
   // For production on Render
   if (window.location.hostname.includes('onrender.com')) {
-    return 'https://setlist-playlist-generator-backend-p6bdw.onrender.com';
+    return 'https://setlist-playlist-generator.onrender.com';
   }
   
   // For development

@@ -40,10 +40,10 @@ const Callback: React.FC = () => {
         setStatus('🔄 Exchanging authorization code...');
         console.log('Attempting to exchange code...');
         
-        // Get API URL from environment or construct it
-        const apiUrl = process.env.REACT_APP_API_URL || 
-          (window.location.hostname === 'localhost' ? 'http://localhost:3001' : 
-           `${window.location.protocol}//${window.location.hostname.replace('setlist-playlist-generator-site', 'setlist-playlist-generator-backend')}`);
+        // Get API URL - use the correct backend URL
+        const apiUrl = window.location.hostname === 'localhost' 
+          ? 'http://localhost:3001' 
+          : 'https://setlist-playlist-generator.onrender.com';
         
         console.log('API URL:', apiUrl);
         
@@ -52,6 +52,8 @@ const Callback: React.FC = () => {
           headers: {
             'Content-Type': 'application/json',
           },
+          mode: 'cors',
+          credentials: 'include',
         });
         
         if (!response.ok) {
