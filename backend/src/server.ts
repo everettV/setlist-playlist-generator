@@ -18,12 +18,11 @@ import setlistRoutes from './routes/setlist';
 const app = express();
 const PORT = Number(process.env.PORT) || 10000;
 
-// Update CORS for production
 app.use(cors({
   origin: [
     'http://localhost:3000',
-    'https://setlist-playlist-generator.onrender.com', // We'll update this with actual frontend URL
-    /\.onrender\.com$/ // Allow all onrender.com subdomains
+    'http://127.0.0.1:3000',
+    'https://setlist-playlist-generator-site.onrender.com'  // Add your frontend URL
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
