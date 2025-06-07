@@ -269,7 +269,7 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 // Auth Routes
-app.get('/api/auth/url', (req: Request, res: Response): void => {
+app.get('/api/auth/url', (req: Request, res: Response) => {
   try {
     console.log('🎯 Auth URL requested');
     const authURL = spotifyService.getAuthURL();
@@ -285,7 +285,7 @@ app.get('/api/auth/url', (req: Request, res: Response): void => {
   }
 });
 
-app.get('/api/auth/callback', async (req: Request, res: Response): Promise<void> => {
+app.get('/api/auth/callback', async (req: Request, res: Response) => {
   const { code, error, state } = req.query;
   
   console.log('=== SPOTIFY CALLBACK ===');
@@ -322,7 +322,7 @@ app.get('/api/auth/callback', async (req: Request, res: Response): Promise<void>
 });
 
 // Setlist Routes
-app.get('/api/setlist/search', async (req: Request, res: Response): Promise<void> => {
+app.get('/api/setlist/search', async (req: Request, res: Response) => {
   const { artist, limit } = req.query;
   
   if (!artist || typeof artist !== 'string') {
@@ -340,7 +340,7 @@ app.get('/api/setlist/search', async (req: Request, res: Response): Promise<void
 });
 
 // Playlist Routes
-app.post('/api/playlist/create', async (req: Request, res: Response): Promise<void> => {
+app.post('/api/playlist/create', async (req: Request, res: Response) => {
   const { accessToken, setlist } = req.body;
   
   if (!accessToken || !setlist) {
