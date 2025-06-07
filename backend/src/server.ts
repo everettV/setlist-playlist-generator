@@ -13,6 +13,7 @@ console.log('SETLISTFM_API_KEY:', process.env.SETLISTFM_API_KEY ? 'Present' : 'M
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('PORT:', process.env.PORT);
 
+
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
@@ -21,7 +22,9 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://setlist-playlist-generator-site.onrender.com'
+    'https://setlist-playlist-generator-site.onrender.com',
+    'https://setlist-playlist-generator-1.onrender.com'
+
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
