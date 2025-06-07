@@ -1,8 +1,9 @@
-// frontend/src/services/api.ts - Fixed API service with correct backend URL
+// frontend/src/services/api.ts - Fixed with correct backend URL
 
 const getApiUrl = (): string => {
   // For production on Render - CORRECTED BACKEND URL
   if (window.location.hostname.includes('onrender.com')) {
+    // Your backend is at setlist-playlist-generator.onrender.com (without "-site")
     return 'https://setlist-playlist-generator.onrender.com';
   }
   
