@@ -61,6 +61,33 @@ const HeadphonesLogo: React.FC<{ className?: string }> = ({ className = "w-16 h-
   </svg>
 );
 
+// ✅ SEPARATE INPUT COMPONENT TO PREVENT RE-RENDERS
+const ArtistInput: React.FC<{
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  disabled?: boolean;
+}> = React.memo(({ value, onChange, onSubmit, disabled = false }) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      onSubmit();
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={handleKeyDown}
+      placeholder="Artist Name"
+      disabled={disabled}
+      autoComplete="off"
+      className="w-full p-3 border border-gray-300 rounded-lg outline-none transition-all duration-150 ease-in-out focus:border-teal-600 focus:shadow-sm"
+    />
+  );
+});
+
 const Home: React.FC = () => {
   const [currentView, setCurrentView] = useState('home'); // 'home', 'loading', 'results', 'success', 'error'
   const [artist, setArtist] = useState('');
@@ -72,15 +99,11 @@ const Home: React.FC = () => {
     localStorage.getItem('spotify_access_token')
   );
 
-  // ✅ FIX: Use useRef to maintain input reference
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // ✅ FIX: Use useCallback to prevent function recreation on every render
-  const handleArtistChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setArtist(e.target.value);
+  // ✅ STABLE HANDLER FUNCTIONS
+  const handleArtistChange = useCallback((value: string) => {
+    setArtist(value);
   }, []);
 
-  // ✅ FIX: Memoize searchSetlists first, then use it in handleKeyPress
   const searchSetlists = useCallback(async (): Promise<void> => {
     if (!artist.trim()) {
       setError('Please enter an artist name');
@@ -110,13 +133,7 @@ const Home: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [artist]); // Include artist in dependencies
-
-  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      searchSetlists();
-    }
-  }, [searchSetlists]);
+  }, [artist]);
 
   // Test backend connection on component mount
   useEffect(() => {
@@ -250,32 +267,12 @@ const Home: React.FC = () => {
               <label className="block text-gray-700 text-sm font-medium mb-2">
                 Enter an artist name
               </label>
-              {/* ✅ FIXED INPUT - Using stable useCallback handlers */}
-              <input
-                ref={inputRef}
-                type="text"
+              {/* ✅ USING SEPARATE MEMOIZED COMPONENT */}
+              <ArtistInput
                 value={artist}
                 onChange={handleArtistChange}
-                onKeyDown={handleKeyPress}
-                placeholder="Artist Name"
+                onSubmit={searchSetlists}
                 disabled={loading}
-                autoComplete="off"
-                style={{
-                  width: '100%',
-                  padding: '0.75rem 1rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.5rem',
-                  outline: 'none',
-                  transition: 'all 0.15s ease-in-out'
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#0d9488';
-                  e.target.style.boxShadow = '0 0 0 3px rgba(13, 148, 136, 0.1)';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#d1d5db';
-                  e.target.style.boxShadow = 'none';
-                }}
               />
             </div>
             
@@ -435,22 +432,12 @@ const Home: React.FC = () => {
               <label className="block text-gray-700 text-sm font-medium mb-2" style={{ textAlign: 'left' }}>
                 Enter an artist name
               </label>
-              {/* ✅ FIXED INPUT - Same fixes applied here */}
-              <input
-                type="text"
+              {/* ✅ USING SEPARATE MEMOIZED COMPONENT HERE TOO */}
+              <ArtistInput
                 value={artist}
                 onChange={handleArtistChange}
-                onKeyDown={handleKeyPress}
-                placeholder="Artist Name"
-                autoComplete="off"
-                style={{
-                  width: '100%',
-                  padding: '0.75rem 1rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.5rem',
-                  outline: 'none',
-                  transition: 'all 0.15s ease-in-out'
-                }}
+                onSubmit={searchSetlists}
+                disabled={loading}
               />
             </div>
             
