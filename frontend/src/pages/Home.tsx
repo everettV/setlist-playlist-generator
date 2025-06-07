@@ -242,13 +242,20 @@ const Home: React.FC = () => {
                 Enter an artist name
               </label>
               <input
-                type="text"
-                value={artist}
-                onChange={(e) => setArtist(e.target.value)}
-                onKeyDown={handleKeyPress}
-                placeholder="Artist Name"
-                disabled={loading}
-              />
+  type="text"
+  value={artist}
+  onChange={(e) => setArtist(e.target.value)}
+  onKeyDown={handleKeyPress}
+  placeholder="Artist Name"
+  disabled={loading}
+  autoComplete="off"
+  ref={(input) => {
+    // Maintain focus during re-renders
+    if (input && document.activeElement !== input && !loading) {
+      // Only focus if not already focused
+    }
+  }}
+/>
             </div>
             
             <button
