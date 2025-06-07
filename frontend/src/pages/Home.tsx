@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { spotifyApi, setlistApi, playlistApi, testConnection, apiUrl } from '../services/api';
 
 // Types matching your existing API
@@ -72,6 +72,52 @@ const Home: React.FC = () => {
     localStorage.getItem('spotify_access_token')
   );
 
+  // ✅ FIX: Use useRef to maintain input reference
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // ✅ FIX: Use useCallback to prevent function recreation on every render
+  const handleArtistChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setArtist(e.target.value);
+  }, []);
+
+  // ✅ FIX: Memoize searchSetlists first, then use it in handleKeyPress
+  const searchSetlists = useCallback(async (): Promise<void> => {
+    if (!artist.trim()) {
+      setError('Please enter an artist name');
+      return;
+    }
+    
+    setLoading(true);
+    setCurrentView('loading');
+    setError(null);
+    
+    try {
+      console.log('🔍 Searching setlists for:', artist);
+      const data = await setlistApi.searchSetlists(artist);
+      
+      if (data && data.length > 0) {
+        console.log('✅ Setlists found:', data);
+        setSetlists(data);
+        setCurrentView('results');
+      } else {
+        setError('No results. Careful, this is not a search box (yet). Enter an exact artist name.');
+        setCurrentView('error');
+      }
+    } catch (error: any) {
+      console.error('❌ Failed to search setlists:', error);
+      setError(`Failed to search setlists: ${error.message}`);
+      setCurrentView('error');
+    } finally {
+      setLoading(false);
+    }
+  }, [artist]); // Include artist in dependencies
+
+  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      searchSetlists();
+    }
+  }, [searchSetlists]);
+
   // Test backend connection on component mount
   useEffect(() => {
     const checkConnection = async () => {
@@ -104,37 +150,6 @@ const Home: React.FC = () => {
     } catch (error: any) {
       console.error('❌ Failed to get auth URL:', error);
       setError(`Failed to connect to Spotify: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const searchSetlists = async (): Promise<void> => {
-    if (!artist.trim()) {
-      setError('Please enter an artist name');
-      return;
-    }
-    
-    setLoading(true);
-    setCurrentView('loading');
-    setError(null);
-    
-    try {
-      console.log('🔍 Searching setlists for:', artist);
-      const data = await setlistApi.searchSetlists(artist);
-      
-      if (data && data.length > 0) {
-        console.log('✅ Setlists found:', data);
-        setSetlists(data);
-        setCurrentView('results');
-      } else {
-        setError('No results. Careful, this is not a search box (yet). Enter an exact artist name.');
-        setCurrentView('error');
-      }
-    } catch (error: any) {
-      console.error('❌ Failed to search setlists:', error);
-      setError(`Failed to search setlists: ${error.message}`);
-      setCurrentView('error');
     } finally {
       setLoading(false);
     }
@@ -188,18 +203,12 @@ const Home: React.FC = () => {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>): void => {
-    if (e.key === 'Enter') {
-      searchSetlists();
-    }
-  };
-
-  const handleBackToHome = () => {
+  const handleBackToHome = useCallback(() => {
     setCurrentView('home');
     setArtist('');
     setSetlists([]);
     setError(null);
-  };
+  }, []);
 
   // Home View
   const HomeView = () => (
@@ -241,21 +250,33 @@ const Home: React.FC = () => {
               <label className="block text-gray-700 text-sm font-medium mb-2">
                 Enter an artist name
               </label>
+              {/* ✅ FIXED INPUT - Using stable useCallback handlers */}
               <input
-  type="text"
-  value={artist}
-  onChange={(e) => setArtist(e.target.value)}
-  onKeyDown={handleKeyPress}
-  placeholder="Artist Name"
-  disabled={loading}
-  autoComplete="off"
-  ref={(input) => {
-    // Maintain focus during re-renders
-    if (input && document.activeElement !== input && !loading) {
-      // Only focus if not already focused
-    }
-  }}
-/>
+                ref={inputRef}
+                type="text"
+                value={artist}
+                onChange={handleArtistChange}
+                onKeyDown={handleKeyPress}
+                placeholder="Artist Name"
+                disabled={loading}
+                autoComplete="off"
+                style={{
+                  width: '100%',
+                  padding: '0.75rem 1rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.5rem',
+                  outline: 'none',
+                  transition: 'all 0.15s ease-in-out'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#0d9488';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(13, 148, 136, 0.1)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = '#d1d5db';
+                  e.target.style.boxShadow = 'none';
+                }}
+              />
             </div>
             
             <button
@@ -414,12 +435,22 @@ const Home: React.FC = () => {
               <label className="block text-gray-700 text-sm font-medium mb-2" style={{ textAlign: 'left' }}>
                 Enter an artist name
               </label>
+              {/* ✅ FIXED INPUT - Same fixes applied here */}
               <input
                 type="text"
                 value={artist}
-                onChange={(e) => setArtist(e.target.value)}
+                onChange={handleArtistChange}
                 onKeyDown={handleKeyPress}
                 placeholder="Artist Name"
+                autoComplete="off"
+                style={{
+                  width: '100%',
+                  padding: '0.75rem 1rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.5rem',
+                  outline: 'none',
+                  transition: 'all 0.15s ease-in-out'
+                }}
               />
             </div>
             
