@@ -1,7 +1,7 @@
-// Simple API service that handles CORS issues better
+// frontend/src/services/api.ts - Fixed API service with correct backend URL
 
 const getApiUrl = (): string => {
-  // For production on Render
+  // For production on Render - CORRECTED BACKEND URL
   if (window.location.hostname.includes('onrender.com')) {
     return 'https://setlist-playlist-generator.onrender.com';
   }
@@ -12,7 +12,7 @@ const getApiUrl = (): string => {
   }
   
   // Fallback
-  return process.env.REACT_APP_API_URL || 'http://localhost:3001';
+  return process.env.REACT_APP_API_URL || 'https://setlist-playlist-generator.onrender.com';
 };
 
 const apiUrl = getApiUrl();
@@ -39,7 +39,6 @@ const apiCall = async (endpoint: string, options: RequestInit = {}): Promise<any
     const response = await fetch(url, defaultOptions);
     
     console.log(`📡 Response status: ${response.status}`);
-    console.log(`📡 Response headers:`, Object.fromEntries(response.headers.entries()));
     
     if (!response.ok) {
       const errorText = await response.text();
