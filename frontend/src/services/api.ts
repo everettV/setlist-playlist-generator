@@ -62,8 +62,10 @@ const apiCall = async (endpoint: string, options: RequestInit = {}): Promise<any
 
 export const spotifyApi = {
   getAuthURL: async () => {
-    return apiCall('/api/auth/url');
+    return apiCall('/api/auth/url');  // ✅ Should be this
+    // NOT: return apiCall('/');      // ❌ Don't call root
   },
+
   
   handleCallback: async (code: string) => {
     return apiCall(`/api/auth/callback?code=${encodeURIComponent(code)}`);
