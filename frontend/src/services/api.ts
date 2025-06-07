@@ -1,9 +1,8 @@
 // frontend/src/services/api.ts - Fixed with correct backend URL
 
 const getApiUrl = (): string => {
-  // For production on Render - CORRECTED BACKEND URL
-  if (window.location.hostname.includes('onrender.com')) {
-    // Your backend is at setlist-playlist-generator.onrender.com (without "-site")
+  // For production on Render
+  if (window.location.hostname.includes('onrender.com')) {  // ✅ Simplified check
     return 'https://setlist-playlist-generator.onrender.com';
   }
   
@@ -13,7 +12,7 @@ const getApiUrl = (): string => {
   }
   
   // Fallback
-  return process.env.REACT_APP_API_URL || 'https://setlist-playlist-generator.onrender.com';
+  return 'https://setlist-playlist-generator.onrender.com';
 };
 
 const apiUrl = getApiUrl();

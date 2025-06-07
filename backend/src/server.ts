@@ -22,9 +22,8 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://setlist-playlist-generator-site.onrender.com',
-    'https://setlist-playlist-generator-1.onrender.com'
-
+    'https://setlist-playlist-generator-1.onrender.com',      // ✅ Your actual frontend
+    'https://setlist-playlist-generator.onrender.com'         // ✅ Your backend
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -82,26 +81,7 @@ app.get('/api', (req: Request, res: Response) => {
   });
 });
 
-// Spotify Auth Routes
-app.get('/api/auth/url', (req: Request, res: Response) => {
-  try {
-    const scopes = 'playlist-modify-public playlist-modify-private user-read-private user-read-email';
-    const redirectUri = process.env.SPOTIFY_REDIRECT_URI || 'https://setlist-playlist-generator.onrender.com/api/auth/callback';
-    
-    const authURL = `https://accounts.spotify.com/authorize?` +
-      `response_type=code&` +
-      `client_id=${process.env.SPOTIFY_CLIENT_ID}&` +
-      `scope=${encodeURIComponent(scopes)}&` +
-      `redirect_uri=${encodeURIComponent(redirectUri)}`;
-
-    console.log('🎵 Generated auth URL:', authURL);
-    res.json({ authURL });
-  } catch (error: any) {
-    console.error('❌ Failed to generate auth URL:', error);
-    res.status(500).json({ error: 'Failed to generate auth URL', message: error.message });
-  }
-});
-
+// In backend/src/server.ts - Line 77
 app.get('/api/auth/callback', async (req: Request, res: Response) => {
   try {
     const { code } = req.query;
@@ -116,7 +96,7 @@ app.get('/api/auth/callback', async (req: Request, res: Response) => {
       new URLSearchParams({
         grant_type: 'authorization_code',
         code: code as string,
-        redirect_uri: process.env.SPOTIFY_REDIRECT_URI || 'https://setlist-playlist-generator.onrender.com/api/auth/callback',
+        redirect_uri: 'https://setlist-playlist-generator.onrender.com/api/auth/callback', // ✅ Fixed
         client_id: process.env.SPOTIFY_CLIENT_ID!,
         client_secret: process.env.SPOTIFY_CLIENT_SECRET!
       }),
@@ -130,9 +110,7 @@ app.get('/api/auth/callback', async (req: Request, res: Response) => {
     const { access_token, refresh_token } = tokenResponse.data;
     
     // Redirect to frontend with tokens
-    const frontendUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://setlist-playlist-generator-site.onrender.com'
-      : 'http://localhost:3000';
+    const frontendUrl = 'https://setlist-playlist-generator-1.onrender.com'; // ✅ Fixed
     
     const redirectUrl = `${frontendUrl}/callback?access_token=${access_token}&refresh_token=${refresh_token || ''}`;
     
@@ -141,12 +119,12 @@ app.get('/api/auth/callback', async (req: Request, res: Response) => {
     
   } catch (error: any) {
     console.error('❌ Token exchange failed:', error.response?.data || error.message);
-    const frontendUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://setlist-playlist-generator-site.onrender.com'
-      : 'http://localhost:3000';
+    const frontendUrl = 'https://setlist-playlist-generator-1.onrender.com'; // ✅ Fixed
     res.redirect(`${frontendUrl}/callback?error=auth_failed`);
   }
 });
+
+
 
 // Setlist Search Route
 app.get('/api/setlist/search', async (req: Request, res: Response) => {
