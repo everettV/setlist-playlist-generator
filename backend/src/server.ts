@@ -101,6 +101,9 @@ class SpotifyService {
     try {
       console.log('🔄 Exchanging code for token...');
       console.log('Using redirect URI:', this.redirectUri);
+      console.log('Client ID present:', !!this.clientId);
+      console.log('Client Secret present:', !!this.clientSecret);
+      console.log('Code length:', code.length);
       
       const params = new URLSearchParams({
         grant_type: 'authorization_code',
@@ -108,7 +111,10 @@ class SpotifyService {
         redirect_uri: this.redirectUri,
       });
 
+      console.log('Request params:', params.toString());
+
       const authHeader = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
+      console.log('Auth header created, length:', authHeader.length);
 
       const response = await axios.post<SpotifyTokenResponse>('https://accounts.spotify.com/api/token', params, {
         headers: {
@@ -118,14 +124,26 @@ class SpotifyService {
       });
 
       console.log('✅ Token exchange successful');
+      console.log('Response status:', response.status);
+      console.log('Response data keys:', Object.keys(response.data));
+      
       this.accessToken = response.data.access_token;
       return response.data;
     } catch (error: any) {
-      console.error('❌ Token exchange failed:', error.response?.data || error.message);
+      console.error('❌ Token exchange failed');
+      console.error('Error type:', typeof error);
+      console.error('Error constructor:', error.constructor.name);
+      console.error('Error message:', error.message);
+      console.error('Error response status:', error.response?.status);
+      console.error('Error response data:', error.response?.data);
+      console.error('Error config URL:', error.config?.url);
+      console.error('Error config method:', error.config?.method);
+      console.error('Error config headers:', error.config?.headers);
       
       const errorMessage = error.response?.data?.error_description || 
                           error.response?.data?.error || 
-                          error.message;
+                          error.message ||
+                          'Unknown error during token exchange';
       
       throw new Error(errorMessage);
     }
@@ -168,7 +186,7 @@ class SpotifyService {
 
   async createPlaylist(userId: string, name: string, description: string): Promise<any> {
     try {
-      const response = await axios.post(`https://api.spotify.com/v1/users/${userId}/playlists`, {
+      const response = await axios.post(`https://api.spotify.com/v1/users/${encodeURIComponent(userId)}/playlists`, {
         name: name,
         description: description,
         public: false
@@ -178,6 +196,8 @@ class SpotifyService {
           'Content-Type': 'application/json'
         }
       });
+
+      
       
       return response.data;
     } catch (error: any) {
@@ -285,36 +305,43 @@ app.get('/api/auth/url', (req: Request, res: Response) => {
   }
 });
 
-// FIXED CALLBACK HANDLER
+// IMPROVED CALLBACK HANDLER WITH BETTER ERROR HANDLING
 app.get('/api/auth/callback', async (req: Request, res: Response) => {
   const { code, error, state } = req.query;
   
   console.log('=== SPOTIFY CALLBACK ===');
   console.log('Code:', code ? `${code}`.substring(0, 20) + '...' : 'Missing');
   console.log('Error:', error);
+  console.log('State:', state);
+  console.log('Full query params:', req.query);
   
   // Determine frontend URL based on environment
   const frontendUrl = process.env.NODE_ENV === 'production' 
     ? 'https://setlist-playlist-generator-1.onrender.com'
     : 'http://localhost:3000';
   
+  console.log('Frontend URL determined as:', frontendUrl);
+  
   if (error) {
     console.error('Spotify authorization error:', error);
-    // Redirect to frontend with error
-    res.redirect(`${frontendUrl}?error=${encodeURIComponent(error as string)}`);
+    const errorMsg = typeof error === 'string' ? error : JSON.stringify(error);
+    res.redirect(`${frontendUrl}?error=${encodeURIComponent(errorMsg)}`);
     return;
   }
   
   if (!code || typeof code !== 'string') {
     console.error('No authorization code provided');
-    // Redirect to frontend with error
+    console.error('Code type:', typeof code);
+    console.error('Code value:', code);
     res.redirect(`${frontendUrl}?error=no_code`);
     return;
   }
   
   try {
+    console.log('🔄 Starting token exchange...');
     const tokenData = await spotifyService.getAccessToken(code);
     console.log('✅ Token exchange successful');
+    console.log('Token data keys:', Object.keys(tokenData));
     
     // Redirect to frontend with success and token
     const params = new URLSearchParams({
@@ -327,13 +354,22 @@ app.get('/api/auth/callback', async (req: Request, res: Response) => {
       params.append('refresh_token', tokenData.refresh_token);
     }
     
-    console.log('🔄 Redirecting to frontend with tokens');
-    res.redirect(`${frontendUrl}/callback?${params.toString()}`);
+    const redirectUrl = `${frontendUrl}/callback?${params.toString()}`;
+    console.log('🔄 Redirecting to:', redirectUrl.substring(0, 100) + '...');
+    
+    res.redirect(redirectUrl);
     
   } catch (error: any) {
-    console.error('❌ Token exchange failed:', error.message);
-    // Redirect to frontend with error
-    res.redirect(`${frontendUrl}?error=${encodeURIComponent('token_exchange_failed')}&details=${encodeURIComponent(error.message)}`);
+    console.error('❌ Token exchange failed - Full error object:', error);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error response data:', error.response?.data);
+    console.error('❌ Error response status:', error.response?.status);
+    
+    const errorMsg = error.message || 'token_exchange_failed';
+    const errorDetails = error.response?.data ? JSON.stringify(error.response.data) : error.stack;
+    
+    res.redirect(`${frontendUrl}?error=${encodeURIComponent(errorMsg)}&details=${encodeURIComponent(errorDetails || 'No additional details')}`);
   }
 });
 
