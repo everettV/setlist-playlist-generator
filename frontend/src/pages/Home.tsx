@@ -1,13 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, ChangeEvent } from 'react';
 import { spotifyApi, setlistApi, playlistApi, testConnection, apiUrl } from '../services/api';
 
+interface Setlist {
+  id: string;
+  eventDate: string;
+  artist: {
+    name: string;
+  };
+  venue: {
+    name: string;
+    city: {
+      name: string;
+      country?: {
+        name: string;
+      };
+    };
+  };
+  sets: {
+    set: Array<{
+      song: Array<{
+        name: string;
+      }>;
+    }>;
+  };
+}
+
 const Home: React.FC = () => {
-  const [artist, setArtist] = useState('');
-  const [setlists, setSetlists] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [artist, setArtist] = useState<string>('');
+  const [setlists, setSetlists] = useState<Setlist[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'failed'>('checking');
-  const [accessToken, setAccessToken] = useState(
+  const [accessToken, setAccessToken] = useState<string | null>(
     localStorage.getItem('spotify_access_token')
   );
 
@@ -26,7 +50,7 @@ const Home: React.FC = () => {
     checkConnection();
   }, []);
 
-  const handleSpotifyLogin = async () => {
+  const handleSpotifyLogin = async (): Promise<void> => {
     try {
       setError(null);
       setLoading(true);
@@ -48,7 +72,7 @@ const Home: React.FC = () => {
     }
   };
 
-  const searchSetlists = async () => {
+  const searchSetlists = async (): Promise<void> => {
     if (!artist.trim()) {
       setError('Please enter an artist name');
       return;
@@ -70,7 +94,7 @@ const Home: React.FC = () => {
     }
   };
 
-  const createPlaylist = async (setlist: any) => {
+  const createPlaylist = async (setlist: Setlist): Promise<void> => {
     if (!accessToken) {
       setError('Please login to Spotify first');
       return;
@@ -87,7 +111,7 @@ const Home: React.FC = () => {
       });
       
       console.log('✅ Playlist created:', data);
-      alert(`Playlist created! ${data.tracksAdded}/${data.totalSongs} tracks added.`);
+      window.alert(`Playlist created! ${data.tracksAdded}/${data.totalSongs} tracks added.`);
       
       if (data.notFoundSongs && data.notFoundSongs.length > 0) {
         console.log('Songs not found:', data.notFoundSongs);
@@ -100,13 +124,13 @@ const Home: React.FC = () => {
     }
   };
 
-  const logout = () => {
+  const logout = (): void => {
     localStorage.removeItem('spotify_access_token');
     localStorage.removeItem('spotify_refresh_token');
     setAccessToken(null);
   };
 
-  const retryConnection = async () => {
+  const retryConnection = async (): Promise<void> => {
     setConnectionStatus('checking');
     setError(null);
     const isConnected = await testConnection();
@@ -114,6 +138,16 @@ const Home: React.FC = () => {
     
     if (!isConnected) {
       setError('Still cannot connect to backend server.');
+    }
+  };
+
+  const handleArtistChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    setArtist(e.target.value);
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === 'Enter') {
+      searchSetlists();
     }
   };
 
@@ -198,9 +232,9 @@ const Home: React.FC = () => {
                 <input
                   type="text"
                   value={artist}
-                  onChange={(e) => setArtist(e.target.value)}
+                  onChange={handleArtistChange}
                   placeholder="Enter artist name"
-                  onKeyPress={(e) => e.key === 'Enter' && searchSetlists()}
+                  onKeyPress={handleKeyPress}
                 />
                 <button onClick={searchSetlists} disabled={loading}>
                   {loading ? 'Searching...' : 'Search Setlists'}
@@ -210,7 +244,7 @@ const Home: React.FC = () => {
               {setlists.length > 0 && (
                 <div className="setlists-section">
                   <h2>Recent Setlists for {artist}</h2>
-                  {setlists.map((setlist: any) => (
+                  {setlists.map((setlist: Setlist) => (
                     <div key={setlist.id} className="setlist-card">
                       <h3>{setlist.venue?.name || 'Unknown Venue'}</h3>
                       <p>

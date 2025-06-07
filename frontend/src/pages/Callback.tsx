@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 const Callback: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [status, setStatus] = useState('Processing authentication...');
+  const [status, setStatus] = useState<string>('Processing authentication...');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
