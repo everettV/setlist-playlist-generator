@@ -285,6 +285,7 @@ app.get('/api/auth/url', (req: Request, res: Response) => {
   }
 });
 
+// FIXED CALLBACK HANDLER
 app.get('/api/auth/callback', async (req: Request, res: Response) => {
   const { code, error, state } = req.query;
   
@@ -292,32 +293,47 @@ app.get('/api/auth/callback', async (req: Request, res: Response) => {
   console.log('Code:', code ? `${code}`.substring(0, 20) + '...' : 'Missing');
   console.log('Error:', error);
   
-  res.header('Access-Control-Allow-Origin', req.get('origin') || '*');
-  res.header('Access-Control-Allow-Credentials', 'true');
+  // Determine frontend URL based on environment
+  const frontendUrl = process.env.NODE_ENV === 'production' 
+    ? 'https://setlist-playlist-generator-site.onrender.com'
+    : 'http://localhost:3000';
   
   if (error) {
     console.error('Spotify authorization error:', error);
-    res.status(400).json({ error: 'Authorization denied by user' });
+    // Redirect to frontend with error
+    res.redirect(`${frontendUrl}?error=${encodeURIComponent(error as string)}`);
     return;
   }
   
   if (!code || typeof code !== 'string') {
     console.error('No authorization code provided');
-    res.status(400).json({ error: 'No authorization code provided' });
+    // Redirect to frontend with error
+    res.redirect(`${frontendUrl}?error=no_code`);
     return;
   }
   
   try {
     const tokenData = await spotifyService.getAccessToken(code);
     console.log('✅ Token exchange successful');
-    res.json(tokenData);
+    
+    // Redirect to frontend with success and token
+    const params = new URLSearchParams({
+      access_token: tokenData.access_token,
+      expires_in: tokenData.expires_in.toString(),
+      token_type: tokenData.token_type
+    });
+    
+    if (tokenData.refresh_token) {
+      params.append('refresh_token', tokenData.refresh_token);
+    }
+    
+    console.log('🔄 Redirecting to frontend with tokens');
+    res.redirect(`${frontendUrl}/callback?${params.toString()}`);
+    
   } catch (error: any) {
     console.error('❌ Token exchange failed:', error.message);
-    res.status(500).json({ 
-      error: 'token_exchange_failed',
-      message: 'Failed to exchange code for token',
-      details: error.message
-    });
+    // Redirect to frontend with error
+    res.redirect(`${frontendUrl}?error=${encodeURIComponent('token_exchange_failed')}&details=${encodeURIComponent(error.message)}`);
   }
 });
 
