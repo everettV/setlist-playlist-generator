@@ -1,2 +1,5 @@
-/callback   /index.html   200
-/*          /index.html   200
+# Specific callback route
+/callback /index.html 200
+
+# Catch-all for React Router
+/* /index.html 200
