@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: setlist-playlist-backend
+    name: setlist-playlist-generator
     env: node
     plan: free
     buildCommand: cd backend && npm install && npm run build
@@ -8,9 +8,12 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 10000
+      # Add your actual API keys in Render dashboard
 
   - type: web
-    name: setlist-playlist-frontend
+    name: setlist-playlist-generator-site
     env: static
     plan: free
     buildCommand: cd frontend && npm install && npm run build
