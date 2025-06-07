@@ -81,6 +81,26 @@ app.get('/api', (req: Request, res: Response) => {
   });
 });
 
+// Spotify Auth Routes
+app.get('/api/auth/url', (req: Request, res: Response) => {
+  try {
+    const scopes = 'playlist-modify-public playlist-modify-private user-read-private user-read-email';
+    const redirectUri = process.env.SPOTIFY_REDIRECT_URI || 'https://setlist-playlist-generator.onrender.com/api/auth/callback';
+    
+    const authURL = `https://accounts.spotify.com/authorize?` +
+      `response_type=code&` +
+      `client_id=${process.env.SPOTIFY_CLIENT_ID}&` +
+      `scope=${encodeURIComponent(scopes)}&` +
+      `redirect_uri=${encodeURIComponent(redirectUri)}`;
+
+    console.log('🎵 Generated auth URL:', authURL);
+    res.json({ authURL });
+  } catch (error: any) {
+    console.error('❌ Failed to generate auth URL:', error);
+    res.status(500).json({ error: 'Failed to generate auth URL', message: error.message });
+  }
+});
+
 // In backend/src/server.ts - Line 77
 app.get('/api/auth/callback', async (req: Request, res: Response) => {
   try {
