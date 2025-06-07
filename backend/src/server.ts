@@ -32,7 +32,7 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://setlist-playlist-generator-site.onrender.com'
+    'https://setlist-playlist-generator-1.onrender.com'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -295,7 +295,7 @@ app.get('/api/auth/callback', async (req: Request, res: Response) => {
   
   // Determine frontend URL based on environment
   const frontendUrl = process.env.NODE_ENV === 'production' 
-    ? 'https://setlist-playlist-generator-site.onrender.com'
+    ? 'https://setlist-playlist-generator-1.onrender.com'
     : 'http://localhost:3000';
   
   if (error) {
