@@ -2,6 +2,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import axios from 'axios';
 
 dotenv.config();
 
@@ -78,7 +79,211 @@ app.get('/api', (req: Request, res: Response) => {
   });
 });
 
+// Spotify Auth Routes
+app.get('/api/auth/url', (req: Request, res: Response) => {
+  try {
+    const scopes = 'playlist-modify-public playlist-modify-private user-read-private user-read-email';
+    const redirectUri = process.env.SPOTIFY_REDIRECT_URI || 'https://setlist-playlist-generator.onrender.com/api/auth/callback';
+    
+    const authURL = `https://accounts.spotify.com/authorize?` +
+      `response_type=code&` +
+      `client_id=${process.env.SPOTIFY_CLIENT_ID}&` +
+      `scope=${encodeURIComponent(scopes)}&` +
+      `redirect_uri=${encodeURIComponent(redirectUri)}`;
 
+    console.log('🎵 Generated auth URL:', authURL);
+    res.json({ authURL });
+  } catch (error: any) {
+    console.error('❌ Failed to generate auth URL:', error);
+    res.status(500).json({ error: 'Failed to generate auth URL', message: error.message });
+  }
+});
+
+app.get('/api/auth/callback', async (req: Request, res: Response) => {
+  try {
+    const { code } = req.query;
+    
+    if (!code) {
+      return res.status(400).json({ error: 'No authorization code provided' });
+    }
+
+    console.log('🔄 Exchanging code for tokens...');
+    
+    const tokenResponse = await axios.post('https://accounts.spotify.com/api/token', 
+      new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code as string,
+        redirect_uri: process.env.SPOTIFY_REDIRECT_URI || 'https://setlist-playlist-generator.onrender.com/api/auth/callback',
+        client_id: process.env.SPOTIFY_CLIENT_ID!,
+        client_secret: process.env.SPOTIFY_CLIENT_SECRET!
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+    );
+
+    const { access_token, refresh_token } = tokenResponse.data;
+    
+    // Redirect to frontend with tokens
+    const frontendUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://setlist-playlist-generator-site.onrender.com'
+      : 'http://localhost:3000';
+    
+    const redirectUrl = `${frontendUrl}/callback?access_token=${access_token}&refresh_token=${refresh_token || ''}`;
+    
+    console.log('✅ Redirecting to frontend with tokens');
+    res.redirect(redirectUrl);
+    
+  } catch (error: any) {
+    console.error('❌ Token exchange failed:', error.response?.data || error.message);
+    const frontendUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://setlist-playlist-generator-site.onrender.com'
+      : 'http://localhost:3000';
+    res.redirect(`${frontendUrl}/callback?error=auth_failed`);
+  }
+});
+
+// Setlist Search Route
+app.get('/api/setlist/search', async (req: Request, res: Response) => {
+  try {
+    const { artist, limit = 10 } = req.query;
+    
+    if (!artist) {
+      return res.status(400).json({ error: 'Artist parameter is required' });
+    }
+
+    console.log('🔍 Searching setlists for:', artist);
+    
+    const response = await axios.get(`https://api.setlist.fm/rest/1.0/search/setlists`, {
+      params: {
+        artistName: artist,
+        p: 1  // First page
+      },
+      headers: {
+        'x-api-key': process.env.SETLISTFM_API_KEY,
+        'Accept': 'application/json'
+      }
+    });
+
+    const setlists = response.data.setlist || [];
+    
+    // Filter setlists that have songs
+    const setlistsWithSongs = setlists.filter((setlist: any) => 
+      setlist.sets?.set?.some((set: any) => set.song?.length > 0)
+    ).slice(0, Number(limit));
+
+    console.log('✅ Found setlists:', setlistsWithSongs.length);
+    res.json(setlistsWithSongs);
+    
+  } catch (error: any) {
+    console.error('❌ Setlist search failed:', error.response?.data || error.message);
+    res.status(500).json({ 
+      error: 'Failed to search setlists', 
+      message: error.response?.data?.message || error.message 
+    });
+  }
+});
+
+// Playlist Creation Route
+app.post('/api/playlist/create', async (req: Request, res: Response) => {
+  try {
+    const { accessToken, setlist } = req.body;
+    
+    if (!accessToken || !setlist) {
+      return res.status(400).json({ error: 'Access token and setlist are required' });
+    }
+
+    console.log('🎵 Creating playlist for setlist:', setlist.id);
+    
+    // Get user profile
+    const userResponse = await axios.get('https://api.spotify.com/v1/me', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    
+    const userId = userResponse.data.id;
+    
+    // Extract songs from setlist
+    const songs = setlist.sets?.set?.flatMap((set: any) => 
+      set.song?.map((song: any) => song.name) || []
+    ) || [];
+    
+    if (songs.length === 0) {
+      return res.status(400).json({ error: 'No songs found in setlist' });
+    }
+    
+    // Create playlist
+    const playlistName = `${setlist.artist?.name || 'Unknown'} - ${setlist.venue?.name || 'Unknown Venue'} (${setlist.eventDate || 'Unknown Date'})`;
+    
+    const playlistResponse = await axios.post(
+      `https://api.spotify.com/v1/users/${userId}/playlists`,
+      {
+        name: playlistName,
+        description: `Setlist from ${setlist.artist?.name || 'Unknown Artist'} concert`,
+        public: true
+      },
+      {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      }
+    );
+    
+    const playlistId = playlistResponse.data.id;
+    
+    // Search and add tracks
+    const trackUris: string[] = [];
+    const notFoundSongs: string[] = [];
+    
+    for (const songName of songs) {
+      try {
+        const searchResponse = await axios.get('https://api.spotify.com/v1/search', {
+          params: {
+            q: `track:"${songName}" artist:"${setlist.artist?.name || ''}"`,
+            type: 'track',
+            limit: 1
+          },
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        
+        const tracks = searchResponse.data.tracks?.items;
+        if (tracks && tracks.length > 0) {
+          trackUris.push(tracks[0].uri);
+        } else {
+          notFoundSongs.push(songName);
+        }
+      } catch (searchError) {
+        console.log(`Failed to find song: ${songName}`);
+        notFoundSongs.push(songName);
+      }
+    }
+    
+    // Add tracks to playlist
+    if (trackUris.length > 0) {
+      await axios.post(
+        `https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
+        { uris: trackUris },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        }
+      );
+    }
+    
+    console.log('✅ Playlist created successfully');
+    res.json({
+      playlist: playlistResponse.data,
+      tracksAdded: trackUris.length,
+      totalSongs: songs.length,
+      notFoundSongs
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Playlist creation failed:', error.response?.data || error.message);
+    res.status(500).json({ 
+      error: 'Failed to create playlist', 
+      message: error.response?.data?.message || error.message 
+    });
+  }
+});
 
 // 404 handler for API routes
 app.use('/api/*', (req: Request, res: Response) => {
