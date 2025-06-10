@@ -1,5 +1,5 @@
-import * as jwt from 'jsonwebtoken';
-import * as fs from 'fs';
+import { sign } from 'jsonwebtoken';
+import { readFileSync, existsSync } from 'fs';
 import fetch from 'node-fetch';
 
 export class AppleMusicService {
@@ -12,18 +12,18 @@ export class AppleMusicService {
     this.teamId = process.env.APPLE_MUSIC_TEAM_ID!;
     
     if (!this.keyId || !this.teamId) {
-      throw new Error('Apple Music credentials missing.');
+      throw new Error('Apple Music credentials missing. Check APPLE_MUSIC_KEY_ID and APPLE_MUSIC_TEAM_ID environment variables.');
     }
 
     try {
-      if (process.env.APPLE_MUSIC_PRIVATE_KEY_PATH && fs.existsSync(process.env.APPLE_MUSIC_PRIVATE_KEY_PATH)) {
-        this.privateKey = fs.readFileSync(process.env.APPLE_MUSIC_PRIVATE_KEY_PATH, 'utf8');
+      if (process.env.APPLE_MUSIC_PRIVATE_KEY_PATH && existsSync(process.env.APPLE_MUSIC_PRIVATE_KEY_PATH)) {
+        this.privateKey = readFileSync(process.env.APPLE_MUSIC_PRIVATE_KEY_PATH, 'utf8');
       }
       else if (process.env.APPLE_MUSIC_PRIVATE_KEY) {
         this.privateKey = process.env.APPLE_MUSIC_PRIVATE_KEY.replace(/\\n/g, '\n');
       }
       else {
-        throw new Error('No Apple Music private key found.');
+        throw new Error('No Apple Music private key found. Set either APPLE_MUSIC_PRIVATE_KEY_PATH or APPLE_MUSIC_PRIVATE_KEY environment variable.');
       }
     } catch (error) {
       throw new Error('Failed to read Apple Music private key: ' + error);
@@ -39,7 +39,7 @@ export class AppleMusicService {
     };
 
     try {
-      return jwt.sign(payload, this.privateKey, {
+      return sign(payload, this.privateKey, {
         algorithm: 'ES256',
         keyid: this.keyId,
       });
