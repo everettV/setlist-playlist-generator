@@ -18,14 +18,39 @@ export class AppleMusicService {
     try {
       if (process.env.APPLE_MUSIC_PRIVATE_KEY_PATH && existsSync(process.env.APPLE_MUSIC_PRIVATE_KEY_PATH)) {
         this.privateKey = readFileSync(process.env.APPLE_MUSIC_PRIVATE_KEY_PATH, 'utf8');
+        console.log('📁 Using Apple Music private key from file path');
       }
       else if (process.env.APPLE_MUSIC_PRIVATE_KEY) {
-        this.privateKey = process.env.APPLE_MUSIC_PRIVATE_KEY.replace(/\\n/g, '\n');
+        // Handle escaped newlines and clean up the key
+        let rawKey = process.env.APPLE_MUSIC_PRIVATE_KEY;
+        
+        // Remove quotes if present
+        rawKey = rawKey.replace(/^"(.*)"$/, '$1');
+        
+        // Replace escaped newlines with actual newlines
+        rawKey = rawKey.replace(/\\n/g, '\n');
+        
+        // Ensure proper PEM format
+        if (!rawKey.includes('-----BEGIN PRIVATE KEY-----')) {
+          throw new Error('Invalid private key format. Must be in PEM format starting with -----BEGIN PRIVATE KEY-----');
+        }
+        
+        this.privateKey = rawKey;
+        console.log('🔑 Using Apple Music private key from environment variable');
+        console.log('Key preview:', this.privateKey.substring(0, 50) + '...');
       }
       else {
         throw new Error('No Apple Music private key found. Set either APPLE_MUSIC_PRIVATE_KEY_PATH or APPLE_MUSIC_PRIVATE_KEY environment variable.');
       }
+
+      // Validate the key format
+      if (!this.privateKey.includes('BEGIN PRIVATE KEY')) {
+        throw new Error('Invalid Apple Music private key format. Expected PEM format.');
+      }
+
+      console.log('✅ Apple Music private key loaded and validated successfully');
     } catch (error) {
+      console.error('❌ Apple Music private key error:', error);
       throw new Error('Failed to read Apple Music private key: ' + error);
     }
   }
@@ -35,15 +60,20 @@ export class AppleMusicService {
     const payload = {
       iss: this.teamId,
       iat: now,
-      exp: now + 15778800,
+      exp: now + 15778800, // 6 months
     };
 
     try {
-      return sign(payload, this.privateKey, {
+      const token = sign(payload, this.privateKey, {
         algorithm: 'ES256',
         keyid: this.keyId,
       });
+      
+      console.log('🍎 Apple Music developer token generated successfully');
+      return token;
     } catch (error) {
+      console.error('❌ Token generation error:', error);
+      console.error('Private key preview:', this.privateKey.substring(0, 100));
       throw new Error('Failed to generate Apple Music developer token: ' + error);
     }
   }
