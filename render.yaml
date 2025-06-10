@@ -10,7 +10,16 @@ services:
         value: production
       - key: PORT
         value: 10000
-      # Add your actual API keys in Render dashboard
+      - key: SPOTIFY_CLIENT_ID
+        value: 95e68bd6da33466c960d4a0a76323837
+      - key: SPOTIFY_CLIENT_SECRET
+        value: 792689bec07f49f3ae926747338442d4
+      - key: SETLISTFM_API_KEY
+        value: fAfNdnOQbmUXQ-8DEcsKLeOEyvJRmkpQ5AlD
+      - key: APPLE_MUSIC_TEAM_ID
+        value: 9Z629B5YHG
+      - key: APPLE_MUSIC_KEY_ID
+        value: CL75Y83769
 
   - type: web
     name: setlist-playlist-generator-site
@@ -22,4 +31,3 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
-        
