@@ -8,8 +8,6 @@ dotenv.config();
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
-const isProduction = process.env.NODE_ENV === 'production';
-
 app.use(cors({
   origin: [
     'http://localhost:3000',
@@ -52,6 +50,7 @@ try {
     console.log('✅ Apple Music service initialized successfully');
   } else {
     console.log('⚠️ Apple Music service disabled - missing environment variables');
+    console.log('Required: APPLE_MUSIC_TEAM_ID, APPLE_MUSIC_KEY_ID, and either APPLE_MUSIC_PRIVATE_KEY or APPLE_MUSIC_PRIVATE_KEY_PATH');
   }
 } catch (error) {
   console.log('⚠️ Apple Music service failed to initialize:', error);
@@ -63,7 +62,7 @@ app.get('/api/apple-music/developer-token', (req: Request, res: Response) => {
     if (!appleMusicService) {
       return res.status(503).json({ 
         error: 'Apple Music service not available',
-        message: 'Apple Music credentials not configured properly'
+        message: 'Apple Music credentials not configured properly. Check server logs.'
       });
     }
     const token = appleMusicService.generateDeveloperToken();
@@ -167,19 +166,14 @@ app.post('/api/apple-music/playlist/create', async (req: Request, res: Response)
 app.get('/api/auth/url', async (req: Request, res: Response) => {
   try {
     const scopes = 'playlist-modify-public playlist-modify-private user-read-private user-read-email';
-    
-    const redirectUri = isProduction 
-      ? 'https://setlist-playlist-generator.onrender.com/api/auth/callback'
-      : 'https://setlist-playlist-generator.onrender.com/api/auth/callback';
+    const redirectUri = 'http://localhost:3001/api/auth/callback';
     
     const authURL = `https://accounts.spotify.com/authorize?` +
       `response_type=code&` +
       `client_id=${process.env.SPOTIFY_CLIENT_ID}&` +
       `scope=${encodeURIComponent(scopes)}&` +
-      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-      `state=${isProduction ? 'prod' : 'dev'}`;
+      `redirect_uri=${encodeURIComponent(redirectUri)}`;
 
-    console.log('🎵 Generated Spotify auth URL with redirect:', redirectUri);
     res.json({ authURL });
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to generate auth URL', message: error.message });
@@ -188,20 +182,17 @@ app.get('/api/auth/url', async (req: Request, res: Response) => {
 
 app.get('/api/auth/callback', async (req: Request, res: Response) => {
   try {
-    const { code, state } = req.query;
+    const { code } = req.query;
     
     if (!code) {
       return res.status(400).json({ error: 'No authorization code provided' });
     }
     
-    const redirectUri = 'https://setlist-playlist-generator.onrender.com/api/auth/callback';
-    
-    console.log('🔄 Exchanging Spotify code for tokens...');
     const tokenResponse = await axios.post('https://accounts.spotify.com/api/token', 
       new URLSearchParams({
         grant_type: 'authorization_code',
         code: code as string,
-        redirect_uri: redirectUri,
+        redirect_uri: 'http://localhost:3001/api/auth/callback',
         client_id: process.env.SPOTIFY_CLIENT_ID!,
         client_secret: process.env.SPOTIFY_CLIENT_SECRET!
       }),
@@ -214,20 +205,13 @@ app.get('/api/auth/callback', async (req: Request, res: Response) => {
 
     const { access_token, refresh_token } = tokenResponse.data;
     
-    const frontendUrl = state === 'dev' 
-      ? 'http://localhost:3000'
-      : 'https://setlist-playlist-generator-1.onrender.com';
-    
+    const frontendUrl = 'http://localhost:3000';
     const redirectUrl = `${frontendUrl}/callback?access_token=${access_token}&refresh_token=${refresh_token || ''}`;
     
-    console.log('✅ Redirecting to frontend:', frontendUrl);
     res.redirect(redirectUrl);
     
   } catch (error: any) {
-    console.error('❌ Token exchange failed:', error.response?.data || error.message);
-    const frontendUrl = isProduction 
-      ? 'https://setlist-playlist-generator-1.onrender.com'
-      : 'http://localhost:3000';
+    const frontendUrl = 'http://localhost:3000';
     res.redirect(`${frontendUrl}/callback?error=auth_failed`);
   }
 });
@@ -357,5 +341,4 @@ app.post('/api/playlist/create', async (req: Request, res: Response) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🔗 Environment: ${isProduction ? 'Production' : 'Development'}`);
 });
