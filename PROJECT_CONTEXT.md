@@ -1,14 +1,3 @@
-AI Assistance Context - Updated $(date)
-
-How to Use This File
-Copy the entire contents of this file and paste it into a new AI chat session to provide full project context.
-
-Quick Project Summary
-- Last Updated: $(date)
-- Current Branch: $(git branch --show-current 2>/dev/null || echo "unknown")
-- Uncommitted Changes: $(git status --porcelain | wc -l | tr -d ' ') files
-- Recent Commits: $(git log --oneline -3 | wc -l | tr -d ' ') commits
-
 # Project Context Export - Tue Jun 10 00:49:15 PDT 2025
 
 ## Project Structure
@@ -147,30 +136,3 @@ Before uploading files to AI chat, run:
 ./context_advisor.sh <context_name>
 # Available contexts: artist_autocompletion, multiple_setlists, apple_music_debug, etc.
 ```
-
-## Current Development Focus
-Based on recent changes and roadmap:
-
-- 🍎 Apple Music integration debugging and improvements
-
-## Next Priority Tasks:
-2. **This Week**: Implement artist autocompletion frontend
-3. **Next Week**: Update backend for multiple setlists
-
-## Technical Debt
-
-## Instructions for AI
-- Provide copy-paste terminal commands when suggesting code changes
-- Follow existing project structure and patterns (React/TypeScript/Node.js)
-- Include proper error handling and validation
-- Suggest test cases for new features  
-- Format responses for easy implementation
-- Always ask which specific files to review using ./context_advisor.sh
-
-## File Upload Guidance
-Before uploading files, run: `./context_advisor.sh <context>` or `./context_advisor.sh auto`
-
-Available contexts: artist_autocompletion, multiple_setlists, apple_music_debug, spotify_debug, ui_improvements, backend_api_changes, deployment_issues, performance_optimization
-
-This ensures you upload exactly the files needed for optimal assistance.
-

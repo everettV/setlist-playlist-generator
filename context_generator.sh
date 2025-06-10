@@ -64,3 +64,19 @@ elif command -v xclip >/dev/null 2>&1; then
     cat PROJECT_CONTEXT.md | xclip -selection clipboard
     echo "Context copied to clipboard!"
 fi
+
+if [ -f "ROADMAP.md" ]; then
+    echo "" >> PROJECT_CONTEXT.md
+    echo "## Current Roadmap" >> PROJECT_CONTEXT.md
+    echo '```markdown' >> PROJECT_CONTEXT.md
+    head -50 ROADMAP.md >> PROJECT_CONTEXT.md
+    echo '```' >> PROJECT_CONTEXT.md
+fi
+
+echo "" >> PROJECT_CONTEXT.md
+echo "## File Upload Guidance" >> PROJECT_CONTEXT.md
+echo "Before uploading files to AI chat, run:" >> PROJECT_CONTEXT.md
+echo '```bash' >> PROJECT_CONTEXT.md
+echo "./context_advisor.sh <context_name>" >> PROJECT_CONTEXT.md
+echo "# Available contexts: artist_autocompletion, multiple_setlists, apple_music_debug, etc." >> PROJECT_CONTEXT.md
+echo '```' >> PROJECT_CONTEXT.md
