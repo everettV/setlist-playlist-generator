@@ -7,8 +7,7 @@
   <meta name="theme-color" content="#000000" />
   <meta name="description" content="Generate Spotify playlists from concert setlists" />
     <title>Setlist Playlist Generator</title>
-  <!-- Apple MusicKit JS -->
-  <script src="https://js-cdn.music.apple.com/musickit/v1/musickit.js" async></script>  </head>
+  </head>
   <!-- Add this line for Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   

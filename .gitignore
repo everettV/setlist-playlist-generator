@@ -11,6 +11,10 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# Keys
+*.p8
+AuthKey_*.p8
+
 # Build outputs
 dist/
 build/

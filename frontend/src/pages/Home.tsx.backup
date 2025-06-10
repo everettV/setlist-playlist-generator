@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { spotifyApi, setlistApi, playlistApi, testConnection, appleMusicApi, testAppleMusicConnection, apiUrl } from '../services/api';
-import { MusicKitService } from '../services/musicKit';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { spotifyApi, setlistApi, playlistApi, testConnection, apiUrl } from '../services/api';
 
+// Types matching your existing API
 interface Setlist {
   id: string;
   eventDate: string;
@@ -26,6 +26,7 @@ interface Setlist {
   };
 }
 
+// Background using your exact uploaded image
 const BackgroundPattern: React.FC = () => (
   <div 
     className="fixed inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
@@ -38,6 +39,7 @@ const BackgroundPattern: React.FC = () => (
   />
 );
 
+// Loading Spinner Component
 const LoadingSpinner: React.FC = () => (
   <div className="flex items-center justify-center p-8">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600" style={{
@@ -49,6 +51,7 @@ const LoadingSpinner: React.FC = () => (
   </div>
 );
 
+// Headphones Logo Component
 const HeadphonesLogo: React.FC<{ className?: string }> = ({ className = "w-16 h-16" }) => (
   <svg className={className} viewBox="0 0 64 64" fill="none">
     <path
@@ -58,6 +61,7 @@ const HeadphonesLogo: React.FC<{ className?: string }> = ({ className = "w-16 h-
   </svg>
 );
 
+// ✅ SEPARATE INPUT COMPONENT TO PREVENT RE-RENDERS
 const ArtistInput: React.FC<{
   value: string;
   onChange: (value: string) => void;
@@ -85,7 +89,7 @@ const ArtistInput: React.FC<{
 });
 
 const Home: React.FC = () => {
-  const [currentView, setCurrentView] = useState('home');
+  const [currentView, setCurrentView] = useState('home'); // 'home', 'loading', 'results', 'success', 'error'
   const [artist, setArtist] = useState('');
   const [setlists, setSetlists] = useState<Setlist[]>([]);
   const [loading, setLoading] = useState(false);
@@ -95,11 +99,7 @@ const Home: React.FC = () => {
     localStorage.getItem('spotify_access_token')
   );
 
-  // Apple Music state
-  const [appleMusicToken, setAppleMusicToken] = useState<string | null>(null);
-  const [appleMusicService, setAppleMusicService] = useState<MusicKitService | null>(null);
-  const [appleMusicStatus, setAppleMusicStatus] = useState<'checking' | 'available' | 'unavailable'>('checking');
-
+  // ✅ STABLE HANDLER FUNCTIONS
   const handleArtistChange = useCallback((value: string) => {
     setArtist(value);
   }, []);
@@ -135,105 +135,20 @@ const Home: React.FC = () => {
     }
   }, [artist]);
 
-  // Initialize Apple Music service
-  const initializeAppleMusic = useCallback(async (): Promise<void> => {
-    try {
-      console.log('🍎 Checking Apple Music availability...');
+  // Test backend connection on component mount
+  useEffect(() => {
+    const checkConnection = async () => {
+      console.log('🔍 Testing backend connection...');
+      const isConnected = await testConnection();
+      setConnectionStatus(isConnected ? 'connected' : 'failed');
       
-      const isAvailable = await testAppleMusicConnection();
-      if (!isAvailable) {
-        setAppleMusicStatus('unavailable');
-        console.log('⚠️ Apple Music service not available on backend');
-        return;
+      if (!isConnected) {
+        setError('Cannot connect to backend server. Please check if the backend is running.');
       }
-      
-      if (!MusicKitService.isMusicKitLoaded()) {
-        await MusicKitService.loadMusicKit();
-      }
-      
-      const { developerToken } = await appleMusicApi.getDeveloperToken();
-      
-      const service = new MusicKitService();
-      await service.initialize(developerToken);
-      setAppleMusicService(service);
-      
-      if (service.isAuthorized()) {
-        const userToken = service.getUserToken();
-        if (userToken) {
-          setAppleMusicToken(userToken);
-          console.log('✅ User already authorized with Apple Music');
-        }
-      }
-      
-      setAppleMusicStatus('available');
-      console.log('✅ Apple Music initialized successfully');
-      
-    } catch (error: any) {
-      console.error('❌ Failed to initialize Apple Music:', error);
-      setAppleMusicStatus('unavailable');
-    }
-  }, []);
-
-  // Apple Music login handler
-  const handleAppleMusicLogin = useCallback(async (): Promise<void> => {
-    if (!appleMusicService) {
-      setError('Apple Music not initialized. Please refresh the page.');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-      
-      console.log('🍎 Requesting Apple Music authorization...');
-      const userToken = await appleMusicService.authorize();
-      setAppleMusicToken(userToken);
-      
-      console.log('✅ Apple Music authorized successfully');
-    } catch (error: any) {
-      console.error('❌ Apple Music authorization failed:', error);
-      setError(`Apple Music login failed: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [appleMusicService]);
-
-  // Create Apple Music playlist
-  const createAppleMusicPlaylist = useCallback(async (setlist: Setlist): Promise<void> => {
-    if (!appleMusicToken) {
-      setError('Please login to Apple Music first');
-      return;
-    }
-
-    setLoading(true);
-    setCurrentView('loading');
+    };
     
-    try {
-      console.log('🍎 Creating Apple Music playlist for setlist:', setlist.id);
-      const data = await appleMusicApi.createFromSetlist({
-        userToken: appleMusicToken,
-        setlist
-      });
-      
-      console.log('✅ Apple Music playlist created:', data);
-      setCurrentView('success');
-    } catch (error: any) {
-      console.error('❌ Failed to create Apple Music playlist:', error);
-      setError(`Failed to create Apple Music playlist: ${error.message}`);
-      setCurrentView('error');
-    } finally {
-      setLoading(false);
-    }
-  }, [appleMusicToken]);
-
-  // Apple Music logout
-  const logoutAppleMusic = useCallback((): void => {
-    if (appleMusicService) {
-      appleMusicService.signOut();
-    }
-    setAppleMusicToken(null);
-    console.log('🍎 Signed out of Apple Music');
-  }, [appleMusicService]);
+    checkConnection();
+  }, []);
 
   const handleSpotifyLogin = async (): Promise<void> => {
     try {
@@ -294,28 +209,23 @@ const Home: React.FC = () => {
     setAccessToken(null);
   };
 
+  const retryConnection = async (): Promise<void> => {
+    setConnectionStatus('checking');
+    setError(null);
+    const isConnected = await testConnection();
+    setConnectionStatus(isConnected ? 'connected' : 'failed');
+    
+    if (!isConnected) {
+      setError('Still cannot connect to backend server.');
+    }
+  };
+
   const handleBackToHome = useCallback(() => {
     setCurrentView('home');
     setArtist('');
     setSetlists([]);
     setError(null);
   }, []);
-
-  useEffect(() => {
-    const checkConnections = async () => {
-      console.log('🔍 Testing backend connections...');
-      const spotifyConnected = await testConnection();
-      setConnectionStatus(spotifyConnected ? 'connected' : 'failed');
-      
-      if (!spotifyConnected) {
-        setError('Cannot connect to backend server. Please check if the backend is running.');
-      }
-      
-      initializeAppleMusic();
-    };
-    
-    checkConnections();
-  }, [initializeAppleMusic]);
 
   // Home View
   const HomeView = () => (
@@ -329,75 +239,35 @@ const Home: React.FC = () => {
       </div>
 
       <div className="border-t border-gray-200 pt-8">
-        {!accessToken && !appleMusicToken ? (
+        {!accessToken ? (
           <div className="text-center space-y-6">
-            <p className="text-gray-600">Connect your music account to create playlists</p>
-            <div className="space-y-3">
-              <button
-                onClick={handleSpotifyLogin}
-                disabled={loading}
-                className="w-full btn-primary"
-              >
-                {loading ? 'Connecting...' : '🎵 Login with Spotify'}
-              </button>
-              
-              {appleMusicStatus === 'available' && (
-                <button
-                  onClick={handleAppleMusicLogin}
-                  disabled={loading}
-                  className="w-full btn-secondary"
-                >
-                  {loading ? 'Connecting...' : '🍎 Login with Apple Music'}
-                </button>
-              )}
-              
-              {appleMusicStatus === 'unavailable' && (
-                <div className="text-sm text-gray-500 p-2 bg-gray-100 rounded">
-                  Apple Music not available (backend configuration needed)
-                </div>
-              )}
-              
-              {appleMusicStatus === 'checking' && (
-                <div className="text-sm text-gray-500 p-2">
-                  Checking Apple Music availability...
-                </div>
-              )}
-            </div>
+            <p className="text-gray-600">Connect your Spotify account to create playlists</p>
+            <button
+              onClick={handleSpotifyLogin}
+              disabled={loading}
+              className="w-full btn-primary"
+            >
+              {loading ? 'Connecting...' : 'Login with Spotify'}
+            </button>
           </div>
         ) : (
           <div className="space-y-6">
-            <div className="text-center space-y-2">
-              {accessToken && (
-                <div>
-                  <p className="text-green-600 font-medium">✅ Connected to Spotify</p>
-                  <button
-                    onClick={logout}
-                    className="text-sm text-gray-600 mt-1"
-                    style={{ background: 'none', border: 'none', padding: '0', cursor: 'pointer' }}
-                  >
-                    Logout
-                  </button>
-                </div>
-              )}
-              
-              {appleMusicToken && (
-                <div>
-                  <p className="text-green-600 font-medium">✅ Connected to Apple Music</p>
-                  <button
-                    onClick={logoutAppleMusic}
-                    className="text-sm text-gray-600 mt-1"
-                    style={{ background: 'none', border: 'none', padding: '0', cursor: 'pointer' }}
-                  >
-                    Logout
-                  </button>
-                </div>
-              )}
+            <div className="text-center">
+              <p className="text-green-600 font-medium">✅ Connected to Spotify</p>
+              <button
+                onClick={logout}
+                className="text-sm text-gray-600 mt-2"
+                style={{ background: 'none', border: 'none', padding: '0', cursor: 'pointer' }}
+              >
+                Logout
+              </button>
             </div>
             
             <div>
               <label className="block text-gray-700 text-sm font-medium mb-2">
                 Enter an artist name
               </label>
+              {/* ✅ USING SEPARATE MEMOIZED COMPONENT */}
               <ArtistInput
                 value={artist}
                 onChange={handleArtistChange}
@@ -429,7 +299,37 @@ const Home: React.FC = () => {
     </div>
   );
 
-  // Results View with Apple Music Support
+  // Loading View
+  const LoadingView = () => (
+    <div className="w-full max-w-md mx-auto bg-white-95 backdrop-blur-sm rounded-2xl shadow-xl p-8 relative z-10">
+      <div className="text-center mb-8">
+        <HeadphonesLogo className="w-16 h-16 mx-auto mb-4 text-gray-800" />
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">Setlist Playlist</h1>
+        <p className="text-gray-600">
+          Your favorite artist's latest setlist, direct to your ears via Spotify or Apple Music
+        </p>
+      </div>
+
+      <div className="border-t border-gray-200 pt-8">
+        <div className="flex items-center justify-center" style={{ flexDirection: 'column', padding: '3rem 0' }}>
+          <LoadingSpinner />
+          <p className="text-gray-600 mt-4">Creating playlist...</p>
+        </div>
+      </div>
+
+      <div className="border-t border-gray-200 mt-8 pt-6 text-center text-sm text-gray-600">
+        <p>Made by <strong>Elli Rego</strong> using <strong>Setlist.fm</strong>,</p>
+        <p><strong>Spotify</strong>, and <strong>Apple Music</strong> APIs.</p>
+        <div className="mt-2">
+          <a href="#" className="text-teal-600">Attributions</a>
+          <span className="mx-2">•</span>
+          <a href="#" className="text-teal-600">Feedback?</a>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Results View
   const ResultsView = () => {
     const setlist = setlists[0];
     const songs = setlist?.sets?.set?.flatMap(set => set.song) || [];
@@ -479,33 +379,22 @@ const Home: React.FC = () => {
             </ul>
 
             <p className="text-gray-600 text-sm mb-6">
-              Create this playlist in your preferred music service:
+              Connect an account to create this playlist.
             </p>
 
-            <div className="space-y-3">
-              {accessToken && (
-                <button
-                  onClick={() => createPlaylist(setlist)}
-                  className="w-full btn-primary"
-                >
-                  🎵 CREATE SPOTIFY PLAYLIST
-                </button>
-              )}
-              
-              {appleMusicToken && (
-                <button
-                  onClick={() => createAppleMusicPlaylist(setlist)}
-                  className="w-full btn-secondary"
-                >
-                  🍎 CREATE APPLE MUSIC PLAYLIST
-                </button>
-              )}
-              
-              {!accessToken && !appleMusicToken && (
-                <div className="text-center text-gray-600">
-                  Please log in to a music service to create playlists
-                </div>
-              )}
+            <div className="flex space-x-3">
+              <button
+                onClick={() => createPlaylist(setlist)}
+                className="flex-1 btn-primary"
+              >
+                SPOTIFY
+              </button>
+              <button
+                onClick={() => createPlaylist(setlist)}
+                className="flex-1 btn-secondary"
+              >
+                APPLE MUSIC
+              </button>
             </div>
           </div>
         </div>
@@ -522,36 +411,6 @@ const Home: React.FC = () => {
       </div>
     );
   };
-
-  // Loading View
-  const LoadingView = () => (
-    <div className="w-full max-w-md mx-auto bg-white-95 backdrop-blur-sm rounded-2xl shadow-xl p-8 relative z-10">
-      <div className="text-center mb-8">
-        <HeadphonesLogo className="w-16 h-16 mx-auto mb-4 text-gray-800" />
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Setlist Playlist</h1>
-        <p className="text-gray-600">
-          Your favorite artist's latest setlist, direct to your ears via Spotify or Apple Music
-        </p>
-      </div>
-
-      <div className="border-t border-gray-200 pt-8">
-        <div className="flex items-center justify-center" style={{ flexDirection: 'column', padding: '3rem 0' }}>
-          <LoadingSpinner />
-          <p className="text-gray-600 mt-4">Creating playlist...</p>
-        </div>
-      </div>
-
-      <div className="border-t border-gray-200 mt-8 pt-6 text-center text-sm text-gray-600">
-        <p>Made by <strong>Elli Rego</strong> using <strong>Setlist.fm</strong>,</p>
-        <p><strong>Spotify</strong>, and <strong>Apple Music</strong> APIs.</p>
-        <div className="mt-2">
-          <a href="#" className="text-teal-600">Attributions</a>
-          <span className="mx-2">•</span>
-          <a href="#" className="text-teal-600">Feedback?</a>
-        </div>
-      </div>
-    </div>
-  );
 
   // Error View
   const ErrorView = () => (
@@ -573,6 +432,7 @@ const Home: React.FC = () => {
               <label className="block text-gray-700 text-sm font-medium mb-2" style={{ textAlign: 'left' }}>
                 Enter an artist name
               </label>
+              {/* ✅ USING SEPARATE MEMOIZED COMPONENT HERE TOO */}
               <ArtistInput
                 value={artist}
                 onChange={handleArtistChange}
@@ -593,6 +453,12 @@ const Home: React.FC = () => {
       </div>
 
       <div className="border-t border-gray-200 mt-8 pt-6">
+        <div className="text-center mb-4">
+          <a href="#" className="text-teal-600">
+            Abstract Shapes Vectors by Vecteezy
+          </a>
+        </div>
+        
         <button
           onClick={handleBackToHome}
           className="w-full btn-primary"
@@ -634,7 +500,7 @@ const Home: React.FC = () => {
             </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">Success!</h3>
             <p className="text-gray-600 mb-6">
-              Your playlist has been created and added to your music account.
+              Your playlist has been created and added to your Spotify account.
             </p>
             
             <button
@@ -663,6 +529,7 @@ const Home: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center p-4 relative">
       <BackgroundPattern />
       
+      {/* Connection Status */}
       {connectionStatus !== 'connected' && (
         <div style={{
           position: 'fixed',
@@ -683,6 +550,23 @@ const Home: React.FC = () => {
           }
           <br />
           <small>API URL: {apiUrl}</small>
+          {connectionStatus === 'failed' && (
+            <button 
+              onClick={retryConnection}
+              style={{ 
+                marginLeft: '10px', 
+                padding: '2px 8px', 
+                fontSize: '12px',
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '2px',
+                cursor: 'pointer'
+              }}
+            >
+              Retry
+            </button>
+          )}
         </div>
       )}
 
@@ -706,6 +590,7 @@ const Home: React.FC = () => {
         </div>
       )}
 
+      {/* Main Content */}
       {connectionStatus === 'connected' ? (
         <>
           {currentView === 'home' && <HomeView />}

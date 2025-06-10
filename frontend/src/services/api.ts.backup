@@ -1,14 +1,14 @@
 // frontend/src/services/api.ts - Fixed with correct backend URL
 
 const getApiUrl = (): string => {
-  // For development
-  if (window.location.hostname === 'localhost') {
-    return 'http://localhost:3001';
-  }
-  
   // For production on Render
   if (window.location.hostname.includes('onrender.com')) {
     return 'https://setlist-playlist-generator.onrender.com';
+  }
+  
+  // For local development with 127.0.0.1
+  if (window.location.hostname === '127.0.0.1') {
+    return 'http://127.0.0.1:3001';
   }
   
   // Fallback
@@ -62,9 +62,11 @@ const apiCall = async (endpoint: string, options: RequestInit = {}): Promise<any
 
 export const spotifyApi = {
   getAuthURL: async () => {
-    return apiCall('/api/auth/url');
+    return apiCall('/api/auth/url');  // ✅ Should be this
+    // NOT: return apiCall('/');      // ❌ Don't call root
   },
 
+  
   handleCallback: async (code: string) => {
     return apiCall(`/api/auth/callback?code=${encodeURIComponent(code)}`);
   },
@@ -85,6 +87,18 @@ export const playlistApi = {
   },
 };
 
+// Test connection function
+export const testConnection = async (): Promise<boolean> => {
+  try {
+    await apiCall('/health');
+    return true;
+  } catch (error) {
+    console.error('Connection test failed:', error);
+    return false;
+  }
+};
+
+export { apiUrl };
 export const appleMusicApi = {
   getDeveloperToken: async () => {
     return apiCall('/api/apple-music/developer-token');
@@ -102,17 +116,6 @@ export const appleMusicApi = {
   },
 };
 
-// Test connection function
-export const testConnection = async (): Promise<boolean> => {
-  try {
-    await apiCall('/health');
-    return true;
-  } catch (error) {
-    console.error('Connection test failed:', error);
-    return false;
-  }
-};
-
 export const testAppleMusicConnection = async (): Promise<boolean> => {
   try {
     await apiCall('/api/apple-music/status');
@@ -122,5 +125,3 @@ export const testAppleMusicConnection = async (): Promise<boolean> => {
     return false;
   }
 };
-
-export { apiUrl };
