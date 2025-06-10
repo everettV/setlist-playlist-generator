@@ -1,5 +1,5 @@
-import jwt from 'jsonwebtoken';
-import fs from 'fs';
+import * as jwt from 'jsonwebtoken';
+import * as fs from 'fs';
 import fetch from 'node-fetch';
 
 export class AppleMusicService {
@@ -12,11 +12,19 @@ export class AppleMusicService {
     this.teamId = process.env.APPLE_MUSIC_TEAM_ID!;
     
     if (!this.keyId || !this.teamId) {
-      throw new Error('Apple Music credentials missing. Check APPLE_MUSIC_KEY_ID and APPLE_MUSIC_TEAM_ID environment variables.');
+      throw new Error('Apple Music credentials missing.');
     }
 
     try {
-      this.privateKey = fs.readFileSync(process.env.APPLE_MUSIC_PRIVATE_KEY_PATH!, 'utf8');
+      if (process.env.APPLE_MUSIC_PRIVATE_KEY_PATH && fs.existsSync(process.env.APPLE_MUSIC_PRIVATE_KEY_PATH)) {
+        this.privateKey = fs.readFileSync(process.env.APPLE_MUSIC_PRIVATE_KEY_PATH, 'utf8');
+      }
+      else if (process.env.APPLE_MUSIC_PRIVATE_KEY) {
+        this.privateKey = process.env.APPLE_MUSIC_PRIVATE_KEY.replace(/\\n/g, '\n');
+      }
+      else {
+        throw new Error('No Apple Music private key found.');
+      }
     } catch (error) {
       throw new Error('Failed to read Apple Music private key: ' + error);
     }
@@ -27,7 +35,7 @@ export class AppleMusicService {
     const payload = {
       iss: this.teamId,
       iat: now,
-      exp: now + 15778800, // 6 months
+      exp: now + 15778800,
     };
 
     try {
@@ -42,27 +50,26 @@ export class AppleMusicService {
 
   async searchTrack(songName: string, artistName: string, userToken: string): Promise<any> {
     const developerToken = this.generateDeveloperToken();
-    const query = songName + ' ' + artistName;
+    const query = `${songName} ${artistName}`;
     
     try {
-      const searchUrl = 'https://api.music.apple.com/v1/catalog/us/search?term=' + 
-                       encodeURIComponent(query) + '&types=songs&limit=5';
+      const searchUrl = `https://api.music.apple.com/v1/catalog/us/search?term=${encodeURIComponent(query)}&types=songs&limit=5`;
       
       const response = await fetch(searchUrl, {
         headers: {
-          'Authorization': 'Bearer ' + developerToken,
+          'Authorization': `Bearer ${developerToken}`,
           'Music-User-Token': userToken,
         },
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error('Apple Music search API error: ' + response.status + ' - ' + errorText);
+        throw new Error(`Apple Music search API error: ${response.status} - ${errorText}`);
       }
 
       return response.json();
     } catch (error) {
-      console.error('Failed to search for track "' + songName + '" by "' + artistName + '":', error);
+      console.error(`Failed to search for track "${songName}" by "${artistName}":`, error);
       throw error;
     }
   }
@@ -78,7 +85,7 @@ export class AppleMusicService {
       const response = await fetch('https://api.music.apple.com/v1/me/library/playlists', {
         method: 'POST',
         headers: {
-          'Authorization': 'Bearer ' + developerToken,
+          'Authorization': `Bearer ${developerToken}`,
           'Music-User-Token': userToken,
           'Content-Type': 'application/json',
         },
@@ -89,12 +96,10 @@ export class AppleMusicService {
           },
           relationships: {
             tracks: {
-              data: trackIds.map(function(id) {
-                return {
-                  id: id,
-                  type: 'songs',
-                };
-              }),
+              data: trackIds.map((id) => ({
+                id: id,
+                type: 'songs',
+              })),
             },
           },
         }),
@@ -102,7 +107,7 @@ export class AppleMusicService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error('Failed to create Apple Music playlist: ' + response.status + ' - ' + errorText);
+        throw new Error(`Failed to create Apple Music playlist: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
