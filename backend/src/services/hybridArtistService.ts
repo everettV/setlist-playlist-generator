@@ -1,5 +1,4 @@
-import { searchArtistsFuzzy, searchArtistsExact, MusicBrainzArtist } from './musicBrainzService';
-import { searchArtists as searchSetlistFmArtists } from './artistService';
+import { searchArtistsFuzzy, MusicBrainzArtist } from './musicBrainzService';
 
 export interface HybridArtist {
   mbid: string;
@@ -8,7 +7,7 @@ export interface HybridArtist {
   disambiguation?: string;
   source: 'musicbrainz' | 'setlistfm';
   score?: number;
-  verified: boolean; // true if we confirmed this artist has setlists
+  verified: boolean;
 }
 
 export const searchArtistsHybrid = async (query: string): Promise<HybridArtist[]> => {
@@ -17,58 +16,22 @@ export const searchArtistsHybrid = async (query: string): Promise<HybridArtist[]
   }
 
   try {
-    // Search both APIs in parallel
-    const [musicBrainzResults, setlistFmResults] = await Promise.all([
-      searchArtistsFuzzy(query),
-      searchSetlistFmArtists(query)
-    ]);
+    const musicBrainzResults = await searchArtistsFuzzy(query);
 
-    // Convert MusicBrainz results
-    const mbResults: HybridArtist[] = musicBrainzResults.map(artist => ({
+    const hybridResults: HybridArtist[] = musicBrainzResults.map(artist => ({
       mbid: artist.id,
       name: artist.name,
       sortName: artist['sort-name'],
       disambiguation: artist.disambiguation,
       source: 'musicbrainz' as const,
-      score: artist.score,
+      score: artist.score || 100,
       verified: false
     }));
 
-    // Convert Setlist.fm results (these are verified to have setlists)
-    const setlistResults: HybridArtist[] = setlistFmResults.map(artist => ({
-      mbid: artist.mbid,
-      name: artist.name,
-      sortName: artist.sortName,
-      disambiguation: artist.disambiguation,
-      source: 'setlistfm' as const,
-      verified: true
-    }));
-
-    // Merge and deduplicate by MBID
-    const allResults = [...setlistResults, ...mbResults];
-    const uniqueResults = new Map<string, HybridArtist>();
-
-    for (const artist of allResults) {
-      const existing = uniqueResults.get(artist.mbid);
-      if (!existing) {
-        uniqueResults.set(artist.mbid, artist);
-      } else if (artist.verified && !existing.verified) {
-        // Prefer verified (setlist.fm) results
-        uniqueResults.set(artist.mbid, { ...artist, verified: true });
-      }
-    }
-
-    // Sort by relevance: verified first, then by score
-    return Array.from(uniqueResults.values())
-      .sort((a, b) => {
-        if (a.verified && !b.verified) return -1;
-        if (!a.verified && b.verified) return 1;
-        return (b.score || 0) - (a.score || 0);
-      })
-      .slice(0, 10);
+    return hybridResults.slice(0, 8);
 
   } catch (error) {
-    console.error('Error in hybrid artist search:', error);
+    console.error('Hybrid search error:', error);
     return [];
   }
 };

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { debounce } from 'lodash';
 
 interface Artist {
   mbid: string;
@@ -17,6 +16,18 @@ interface ArtistAutocompleteProps {
   placeholder?: string;
   className?: string;
 }
+
+const debounce = (func: Function, wait: number) => {
+  let timeout: NodeJS.Timeout;
+  return function executedFunction(...args: any[]) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
 
 const ArtistAutocomplete: React.FC<ArtistAutocompleteProps> = ({
   value,
@@ -41,15 +52,39 @@ const ArtistAutocomplete: React.FC<ArtistAutocompleteProps> = ({
       }
 
       setIsLoading(true);
+      
       try {
-        const response = await fetch(`/api/artists/search?q=${encodeURIComponent(query)}`);
+        const apiUrl = 'http://localhost:3001';
+        const url = `${apiUrl}/api/artists/search?q=${encodeURIComponent(query)}&t=${Date.now()}`;
+        
+        console.log('🔍 Fetching:', url);
+        
+        const response = await fetch(url);
+        
+        console.log('�� Response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
-        setSuggestions(data.artists || []);
-        setShowDropdown(true);
+        console.log('✅ Received data:', data);
+        
+        if (data.artists && Array.isArray(data.artists)) {
+          setSuggestions(data.artists);
+          setShowDropdown(data.artists.length > 0);
+          console.log('✅ Set suggestions:', data.artists.length, 'artists');
+        } else {
+          setSuggestions([]);
+          setShowDropdown(false);
+        }
+        
         setHighlightedIndex(-1);
+        
       } catch (error) {
-        console.error('Error searching artists:', error);
+        console.error('❌ Search error:', error);
         setSuggestions([]);
+        setShowDropdown(false);
       } finally {
         setIsLoading(false);
       }
@@ -127,26 +162,30 @@ const ArtistAutocomplete: React.FC<ArtistAutocompleteProps> = ({
         onFocus={handleInputFocus}
         onBlur={handleInputBlur}
         placeholder={placeholder}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        className="w-full p-3 border border-gray-300 rounded-lg outline-none transition-all duration-150 ease-in-out focus:border-teal-600 focus:shadow-sm"
         autoComplete="off"
       />
       
       {isLoading && (
         <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600"></div>
         </div>
       )}
 
       {showDropdown && suggestions.length > 0 && (
         <div
           ref={dropdownRef}
-          className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+          className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto"
         >
           {suggestions.map((artist, index) => (
             <div
               key={artist.mbid}
-              className={`px-4 py-2 cursor-pointer hover:bg-blue-50 ${
-                index === highlightedIndex ? 'bg-blue-100' : ''
+              className={`px-4 py-3 cursor-pointer transition-colors ${
+                index === highlightedIndex 
+                  ? 'bg-teal-50 text-teal-800' 
+                  : 'hover:bg-gray-50'
+              } ${index === 0 ? 'rounded-t-lg' : ''} ${
+                index === suggestions.length - 1 ? 'rounded-b-lg' : 'border-b border-gray-100'
               }`}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSelectArtist(artist)}
@@ -154,9 +193,11 @@ const ArtistAutocomplete: React.FC<ArtistAutocompleteProps> = ({
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="font-medium text-gray-900">{artist.name}</div>
+                  <div className="font-medium">{artist.name}</div>
                   {artist.disambiguation && (
-                    <div className="text-sm text-gray-500">{artist.disambiguation}</div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      {artist.disambiguation}
+                    </div>
                   )}
                 </div>
                 <div className="flex items-center space-x-1">
@@ -176,8 +217,8 @@ const ArtistAutocomplete: React.FC<ArtistAutocompleteProps> = ({
       )}
 
       {showDropdown && suggestions.length === 0 && !isLoading && value.length >= 2 && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
-          <div className="px-4 py-2 text-gray-500">No artists found</div>
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
+          <div className="px-4 py-3 text-gray-500">No artists found</div>
         </div>
       )}
     </div>

@@ -3,11 +3,11 @@ import axios from 'axios';
 const MUSICBRAINZ_BASE_URL = 'https://musicbrainz.org/ws/2';
 
 export interface MusicBrainzArtist {
-  id: string; // MBID
+  id: string;
   name: string;
   'sort-name': string;
   disambiguation?: string;
-  'type'?: string;
+  type?: string;
   'type-id'?: string;
   score: number;
   aliases?: Array<{
@@ -30,8 +30,8 @@ export const searchArtistsFuzzy = async (query: string): Promise<MusicBrainzArti
   }
 
   try {
-    // Use fuzzy search with ~ operator and alias searching
-    const fuzzyQuery = `${query}~ OR alias:${query}~ OR artist:${query}*`;
+    const cleanQuery = query.replace(/[^a-zA-Z0-9\s]/g, '');
+    const fuzzyQuery = `${cleanQuery}~`;
     
     const response = await axios.get(`${MUSICBRAINZ_BASE_URL}/artist`, {
       params: {
@@ -40,37 +40,19 @@ export const searchArtistsFuzzy = async (query: string): Promise<MusicBrainzArti
         limit: 10
       },
       headers: {
-        'User-Agent': 'SetlistPlaylistGenerator/1.0 (https://yourapp.com)'
-      }
-    });
-
-    return response.data.artists || [];
-  } catch (error) {
-    console.error('Error searching MusicBrainz artists:', error);
-    return [];
-  }
-};
-
-export const searchArtistsExact = async (query: string): Promise<MusicBrainzArtist[]> => {
-  if (!query || query.length < 2) {
-    return [];
-  }
-
-  try {
-    const response = await axios.get(`${MUSICBRAINZ_BASE_URL}/artist`, {
-      params: {
-        query: `artist:"${query}"`,
-        fmt: 'json',
-        limit: 5
+        'User-Agent': 'SetlistPlaylistGenerator/1.0 (contact@example.com)',
+        'Accept': 'application/json'
       },
-      headers: {
-        'User-Agent': 'SetlistPlaylistGenerator/1.0 (https://yourapp.com)'
-      }
+      timeout: 5000
     });
 
-    return response.data.artists || [];
+    if (response.data && response.data.artists) {
+      return response.data.artists.slice(0, 8);
+    }
+    
+    return [];
   } catch (error) {
-    console.error('Error searching MusicBrainz artists exact:', error);
+    console.error('MusicBrainz search error:', error);
     return [];
   }
 };
