@@ -1,800 +1,134 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { spotifyApi, setlistApi, playlistApi, testConnection, appleMusicApi, testAppleMusicConnection, apiUrl } from '../services/api';
-import { MusicKitService } from '../services/musicKit';
+import React, { useState } from 'react';
+import ArtistAutocomplete from '../components/ArtistAutocomplete';
 
 interface Artist {
-  id: string;
+  mbid: string;
   name: string;
+  sortName: string;
   disambiguation?: string;
-  sortName?: string;
+  verified?: boolean;
 }
-
-interface Setlist {
-  id: string;
-  eventDate: string;
-  artist: {
-    name: string;
-  };
-  venue: {
-    name: string;
-    city: {
-      name: string;
-      country?: {
-        name: string;
-      };
-    };
-  };
-  sets: {
-    set: Array<{
-      song: Array<{
-        name: string;
-      }>;
-    }>;
-  };
-}
-
-const BackgroundPattern: React.FC = () => (
-  <div 
-    className="fixed inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
-    style={{
-      backgroundImage: `url('/assets/abstract-background.png')`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      backgroundRepeat: 'no-repeat'
-    }}
-  />
-);
-
-const LoadingSpinner: React.FC = () => (
-  <div className="flex items-center justify-center p-8">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600" style={{
-      borderColor: '#0d9488',
-      borderTopColor: 'transparent',
-      borderRightColor: 'transparent',
-      borderLeftColor: 'transparent'
-    }}></div>
-  </div>
-);
-
-const HeadphonesLogo: React.FC<{ className?: string }> = React.memo(({ className = "w-16 h-16" }) => (
-  <svg className={className} viewBox="0 0 64 64" fill="none">
-    <path
-      d="M32 8C21.5 8 13 16.5 13 27v10c0 2.2 1.8 4 4 4h4c2.2 0 4-1.8 4-4V31c0-2.2-1.8-4-4-4h-1c0-8.8 7.2-16 16-16s16 7.2 16 16h-1c-2.2 0-4 1.8-4 4v6c0 2.2 1.8 4 4 4h4c2.2 0 4-1.8 4-4V27c0-10.5-8.5-19-19-19z"
-      fill="currentColor"
-    />
-  </svg>
-));
 
 const Home: React.FC = () => {
-  const [currentView, setCurrentView] = useState('home');
-  const [artist, setArtist] = useState('');
-  const [setlists, setSetlists] = useState<Setlist[]>([]);
+  const [artistName, setArtistName] = useState('');
+  const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'failed'>('checking');
-  const [accessToken, setAccessToken] = useState<string | null>(
-    localStorage.getItem('spotify_access_token')
-  );
-  const [appleMusicToken, setAppleMusicToken] = useState<string | null>(null);
-  const [appleMusicService, setAppleMusicService] = useState<MusicKitService | null>(null);
-  const [appleMusicStatus, setAppleMusicStatus] = useState<'checking' | 'available' | 'unavailable'>('checking');
-  const [playlistResult, setPlaylistResult] = useState<any>(null);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  // Autocomplete state
-  const [suggestions, setSuggestions] = useState<Artist[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const handleArtistSelect = (artist: Artist) => {
+    setSelectedArtist(artist);
+    setError('');
+  };
 
-  const searchArtists = useCallback(async (query: string) => {
-    if (query.length < 2) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-
-    setIsSearching(true);
-    try {
-      const backendUrl = process.env.NODE_ENV === 'production' 
-        ? 'https://setlist-playlist-generator.onrender.com'
-        : 'http://localhost:3001';
-        
-      const response = await fetch(`${backendUrl}/api/artist/search?q=${encodeURIComponent(query)}&limit=6`);
-      
-      if (response.ok) {
-        const artists = await response.json();
-        setSuggestions(artists);
-        setShowSuggestions(artists.length > 0);
-        setSelectedIndex(-1);
-      } else {
-        console.error('Failed to search artists:', response.status);
-        setSuggestions([]);
-        setShowSuggestions(false);
-      }
-    } catch (error) {
-      console.error('Artist search error:', error);
-      setSuggestions([]);
-      setShowSuggestions(false);
-    } finally {
-      setIsSearching(false);
-    }
-  }, []);
-
-  const handleArtistChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    console.log('Input change:', newValue);
-    setArtist(newValue);
-    
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
-    
-    const timer = setTimeout(() => {
-      searchArtists(newValue);
-    }, 300);
-    
-    setDebounceTimer(timer);
-  }, [searchArtists, debounceTimer]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (showSuggestions && suggestions.length > 0) {
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault();
-          setSelectedIndex(prev => 
-            prev < suggestions.length - 1 ? prev + 1 : 0
-          );
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          setSelectedIndex(prev => 
-            prev > 0 ? prev - 1 : suggestions.length - 1
-          );
-          break;
-        case 'Enter':
-          e.preventDefault();
-          if (selectedIndex >= 0 && suggestions[selectedIndex]) {
-            handleSelectArtist(suggestions[selectedIndex]);
-          } else {
-            searchSetlists();
-          }
-          break;
-        case 'Escape':
-          setShowSuggestions(false);
-          setSelectedIndex(-1);
-          break;
-        default:
-          break;
-      }
-    } else if (e.key === 'Enter') {
-      searchSetlists();
-    }
-  }, [showSuggestions, suggestions, selectedIndex]);
-
-  const handleSelectArtist = useCallback((artist: Artist) => {
-    setArtist(artist.name);
-    setShowSuggestions(false);
-    setSelectedIndex(-1);
-    setSuggestions([]);
-    setError(null);
-    
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, []);
-
-  const handleBlur = useCallback(() => {
-    setTimeout(() => {
-      setShowSuggestions(false);
-      setSelectedIndex(-1);
-    }, 150);
-  }, []);
-
-  const handleFocus = useCallback(() => {
-    if (suggestions.length > 0 && artist.length >= 2) {
-      setShowSuggestions(true);
-    }
-  }, [suggestions, artist]);
-
-  const searchSetlists = useCallback(async (): Promise<void> => {
-    if (!artist.trim()) {
+  const handleCreatePlaylist = async (platform: 'spotify' | 'apple') => {
+    if (!artistName.trim()) {
       setError('Please enter an artist name');
       return;
     }
-    
-    setLoading(true);
-    setCurrentView('loading');
-    setError(null);
-    setShowSuggestions(false);
-    
-    try {
-      console.log('🔍 Searching setlists for:', artist);
-      const data = await setlistApi.searchSetlists(artist);
-      
-      if (data && data.length > 0) {
-        console.log('✅ Setlists found:', data);
-        setSetlists(data);
-        setCurrentView('results');
-      } else {
-        setError('No results. Try a different spelling or check if the artist has recent setlists.');
-        setCurrentView('error');
-      }
-    } catch (error: any) {
-      console.error('❌ Failed to search setlists:', error);
-      setError(`Failed to search setlists: ${error.message}`);
-      setCurrentView('error');
-    } finally {
-      setLoading(false);
-    }
-  }, [artist]);
-
-  const initializeAppleMusic = useCallback(async (): Promise<void> => {
-    try {
-      console.log('🍎 Checking Apple Music availability...');
-      
-      const isAvailable = await testAppleMusicConnection();
-      if (!isAvailable) {
-        setAppleMusicStatus('unavailable');
-        console.log('⚠️ Apple Music service not available on backend');
-        return;
-      }
-      
-      if (!MusicKitService.isMusicKitLoaded()) {
-        await MusicKitService.loadMusicKit();
-      }
-      
-      const { developerToken } = await appleMusicApi.getDeveloperToken();
-      
-      const service = new MusicKitService();
-      await service.initialize(developerToken);
-      setAppleMusicService(service);
-      
-      if (service.isAuthorized()) {
-        const userToken = service.getUserToken();
-        if (userToken) {
-          setAppleMusicToken(userToken);
-          console.log('✅ User already authorized with Apple Music');
-        }
-      }
-      
-      setAppleMusicStatus('available');
-      console.log('✅ Apple Music initialized successfully');
-      
-    } catch (error: any) {
-      console.error('❌ Failed to initialize Apple Music:', error);
-      setAppleMusicStatus('unavailable');
-    }
-  }, []);
-
-  const handleAppleMusicLogin = useCallback(async (): Promise<void> => {
-    if (!appleMusicService) {
-      setError('Apple Music not initialized. Please refresh the page.');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-      
-      console.log('🍎 Requesting Apple Music authorization...');
-      const userToken = await appleMusicService.authorize();
-      setAppleMusicToken(userToken);
-      
-      console.log('✅ Apple Music authorized successfully');
-    } catch (error: any) {
-      console.error('❌ Apple Music authorization failed:', error);
-      setError(`Apple Music login failed: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [appleMusicService]);
-
-  const createAppleMusicPlaylist = useCallback(async (setlist: Setlist): Promise<void> => {
-    if (!appleMusicToken) {
-      setError('Please login to Apple Music first');
-      return;
-    }
 
     setLoading(true);
-    setCurrentView('loading');
-    
+    setError('');
+    setSuccess('');
+
     try {
-      console.log('🍎 Creating Apple Music playlist for setlist:', setlist.id);
-      const data = await appleMusicApi.createFromSetlist({
-        userToken: appleMusicToken,
-        setlist
+      const response = await fetch('/api/create-playlist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          artistName: artistName.trim(),
+          platform,
+          artistMbid: selectedArtist?.mbid
+        }),
       });
-      
-      console.log('✅ Apple Music playlist created:', data);
-      setPlaylistResult({ ...data, platform: 'Apple Music' });
-      setCurrentView('success');
-    } catch (error: any) {
-      console.error('❌ Failed to create Apple Music playlist:', error);
-      setError(`Failed to create Apple Music playlist: ${error.message}`);
-      setCurrentView('error');
-    } finally {
-      setLoading(false);
-    }
-  }, [appleMusicToken]);
 
-  const logoutAppleMusic = useCallback((): void => {
-    if (appleMusicService) {
-      appleMusicService.signOut();
-    }
-    setAppleMusicToken(null);
-    console.log('🍎 Signed out of Apple Music');
-  }, [appleMusicService]);
+      const data = await response.json();
 
-  const handleSpotifyLogin = useCallback(async (): Promise<void> => {
-    try {
-      setError(null);
-      setLoading(true);
-      
-      console.log('🎵 Requesting Spotify auth URL...');
-      const data = await spotifyApi.getAuthURL();
-      
-      if (data.authURL) {
-        console.log('✅ Got auth URL, redirecting...');
-        window.location.href = data.authURL;
-      } else {
-        throw new Error('No auth URL in response');
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create playlist');
       }
-    } catch (error: any) {
-      console.error('❌ Failed to get auth URL:', error);
-      setError(`Failed to connect to Spotify: ${error.message}`);
+
+      setSuccess(`Playlist created successfully! ${data.playlistUrl ? `View it here: ${data.playlistUrl}` : ''}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  const createPlaylist = useCallback(async (setlist: Setlist): Promise<void> => {
-    if (!accessToken) {
-      setError('Please login to Spotify first');
-      return;
-    }
-
-    setLoading(true);
-    setCurrentView('loading');
-    
-    try {
-      console.log('🎵 Creating playlist for setlist:', setlist.id);
-      const data = await playlistApi.createFromSetlist({
-        accessToken,
-        setlist
-      });
-      
-      console.log('✅ Playlist created:', data);
-      setPlaylistResult({ ...data, platform: 'Spotify' });
-      setCurrentView('success');
-      
-      if (data.notFoundSongs && data.notFoundSongs.length > 0) {
-        console.log('Songs not found:', data.notFoundSongs);
-      }
-    } catch (error: any) {
-      console.error('❌ Failed to create playlist:', error);
-      setError(`Failed to create playlist: ${error.message}`);
-      setCurrentView('error');
-    } finally {
-      setLoading(false);
-    }
-  }, [accessToken]);
-
-  const logout = useCallback((): void => {
-    localStorage.removeItem('spotify_access_token');
-    localStorage.removeItem('spotify_refresh_token');
-    setAccessToken(null);
-  }, []);
-
-  const handleBackToHome = useCallback(() => {
-    setCurrentView('home');
-    setArtist('');
-    setSetlists([]);
-    setError(null);
-    setSuggestions([]);
-    setShowSuggestions(false);
-    setPlaylistResult(null);
-  }, []);
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return 'Unknown Date';
-    const parts = dateString.split('-');
-    if (parts.length === 3) {
-      return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-    return dateString;
   };
-
-  const getSongCount = (setlist: Setlist) => {
-    return setlist.sets?.set?.reduce((total, set) => 
-      total + (set.song?.length || 0), 0
-    ) || 0;
-  };
-
-  useEffect(() => {
-    const checkConnections = async () => {
-      console.log('🔍 Testing backend connections...');
-      const spotifyConnected = await testConnection();
-      setConnectionStatus(spotifyConnected ? 'connected' : 'failed');
-      
-      if (!spotifyConnected) {
-        setError('Cannot connect to backend server. Please check if the backend is running.');
-      }
-      
-      initializeAppleMusic();
-    };
-    
-    checkConnections();
-  }, [initializeAppleMusic]);
-
-  useEffect(() => {
-    return () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-      }
-    };
-  }, [debounceTimer]);
-
-  console.log('🔍 RENDER DEBUG:', {
-    currentView,
-    artist,
-    accessToken: !!accessToken,
-    appleMusicToken: !!appleMusicToken,
-    loading
-  });
-
-  // Loading View
-  if (currentView === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 relative">
-        <BackgroundPattern />
-        <div className="text-center p-8 bg-white-95 backdrop-blur-sm rounded-2xl shadow-xl max-w-md mx-auto relative z-10">
-          <LoadingSpinner />
-          <p className="text-gray-600 mt-4">Searching for setlists...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Error View
-  if (currentView === 'error') {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 relative">
-        <BackgroundPattern />
-        <div className="text-center p-8 bg-white-95 backdrop-blur-sm rounded-2xl shadow-xl max-w-md mx-auto relative z-10">
-          <div className="text-red-600 text-6xl mb-4">❌</div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Error</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <button onClick={handleBackToHome} className="btn-primary">
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Results View
-  if (currentView === 'results') {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 relative">
-        <BackgroundPattern />
-        <div className="w-full max-w-md mx-auto bg-white-95 backdrop-blur-sm rounded-2xl shadow-xl p-8 relative z-10">
-          <div className="text-center mb-6">
-            <HeadphonesLogo className="w-12 h-12 mx-auto mb-4 text-gray-800" />
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Found Setlist!</h2>
-            <p className="text-gray-600">Choose your music platform</p>
-          </div>
-
-          {setlists.length > 0 && (
-            <div className="space-y-6">
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-semibold text-lg">{setlists[0].artist?.name}</h3>
-                <p className="text-gray-600">{setlists[0].venue?.name}</p>
-                <p className="text-gray-600">
-                  {setlists[0].venue?.city?.name}, {setlists[0].venue?.city?.country?.name}
-                </p>
-                <p className="text-sm text-gray-500 mt-2">
-                  {formatDate(setlists[0].eventDate)} • {getSongCount(setlists[0])} songs
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <button
-                  onClick={() => createPlaylist(setlists[0])}
-                  disabled={loading || !accessToken}
-                  className="w-full py-3 px-6 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200"
-                >
-                  {!accessToken ? '🎵 Login to Spotify First' : 'Create Spotify Playlist'}
-                </button>
-                
-                {appleMusicStatus === 'available' && (
-                  <button
-                    onClick={() => createAppleMusicPlaylist(setlists[0])}
-                    disabled={loading || !appleMusicToken}
-                    className="w-full py-3 px-6 bg-black text-white font-semibold rounded-lg hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200"
-                  >
-                    {!appleMusicToken ? '🍎 Login to Apple Music First' : 'Create Apple Music Playlist'}
-                  </button>
-                )}
-              </div>
-
-              <button onClick={handleBackToHome} className="w-full btn-secondary">
-                Search Another Artist
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Success View
-  if (currentView === 'success') {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 relative">
-        <BackgroundPattern />
-        <div className="text-center p-8 bg-white-95 backdrop-blur-sm rounded-2xl shadow-xl max-w-md mx-auto relative z-10">
-          <div className="text-green-600 text-6xl mb-4">🎉</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Playlist Created!</h2>
-          
-          {playlistResult && (
-            <div className="space-y-4 text-left">
-              <div className="bg-green-50 rounded-lg p-4">
-                <p><strong>Platform:</strong> {playlistResult.platform}</p>
-                <p><strong>Playlist:</strong> {playlistResult.playlist?.name}</p>
-                <p><strong>Tracks Added:</strong> {playlistResult.tracksAdded} / {playlistResult.totalSongs}</p>
-                
-                {playlistResult.notFoundSongs?.length > 0 && (
-                  <details className="mt-3">
-                    <summary className="cursor-pointer text-yellow-700 font-medium">
-                      {playlistResult.notFoundSongs.length} songs not found
-                    </summary>
-                    <ul className="mt-2 text-sm text-yellow-600 ml-4">
-                      {playlistResult.notFoundSongs.map((song: string, index: number) => (
-                        <li key={index}>• {song}</li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </div>
-              
-              {playlistResult.playlist?.external_urls?.spotify && (
-                <a
-                  href={playlistResult.playlist.external_urls.spotify}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full py-3 px-6 bg-green-600 text-white text-center font-semibold rounded-lg hover:bg-green-700 transition-colors duration-200"
-                >
-                  Open in {playlistResult.platform}
-                </a>
-              )}
-            </div>
-          )}
-          
-          <button onClick={handleBackToHome} className="w-full btn-primary mt-6">
-            Create Another Playlist
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Home View
-  if (currentView === 'home') {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 relative">
-        <BackgroundPattern />
-        
-        {connectionStatus !== 'connected' && (
-          <div style={{
-            position: 'fixed',
-            top: '1rem',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            padding: '0.5rem 1rem',
-            borderRadius: '0.5rem',
-            backgroundColor: connectionStatus === 'checking' ? '#fff3cd' : '#f8d7da',
-            border: `1px solid ${connectionStatus === 'checking' ? '#ffeaa7' : '#f5c6cb'}`,
-            color: connectionStatus === 'checking' ? '#856404' : '#721c24',
-            zIndex: 50,
-            fontSize: '0.875rem'
-          }}>
-            <strong>Backend Status:</strong> {
-              connectionStatus === 'checking' ? '🔄 Checking...' :
-              '❌ Disconnected'
-            }
-            <br />
-            <small>API URL: {apiUrl}</small>
-          </div>
-        )}
-
-        {error && (
-          <div style={{
-            position: 'fixed',
-            top: '4rem',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: '#ffe6e6',
-            border: '1px solid #ff9999',
-            borderRadius: '0.5rem',
-            padding: '0.75rem 1rem',
-            margin: '1rem 0',
-            color: '#cc0000',
-            maxWidth: '28rem',
-            zIndex: 50,
-            fontSize: '0.875rem'
-          }}>
-            {error}
-          </div>
-        )}
-
-        {connectionStatus === 'connected' ? (
-          <div className="w-full max-w-md mx-auto bg-white-95 backdrop-blur-sm rounded-2xl shadow-xl p-8 relative z-10">
-            <div className="text-center mb-8">
-              <HeadphonesLogo className="w-16 h-16 mx-auto mb-4 text-gray-800" />
-              <h1 className="text-3xl font-bold text-gray-800 mb-2">Setlist Playlist</h1>
-              <p className="text-gray-600">
-                Your favorite artist's latest setlist, direct to your ears via Spotify or Apple Music
-              </p>
-            </div>
-
-            <div className="border-t border-gray-200 pt-8">
-              {!accessToken && !appleMusicToken ? (
-                <div className="text-center space-y-6">
-                  <p className="text-gray-600">Connect your music account to create playlists</p>
-                  <div className="space-y-3">
-                    <button
-                      onClick={handleSpotifyLogin}
-                      disabled={loading}
-                      className="w-full btn-primary"
-                    >
-                      {loading ? 'Connecting...' : '🎵 Login with Spotify'}
-                    </button>
-                    
-                    {appleMusicStatus === 'available' && (
-                      <button
-                        onClick={handleAppleMusicLogin}
-                        disabled={loading}
-                        className="w-full btn-secondary"
-                      >
-                        {loading ? 'Connecting...' : '🍎 Login with Apple Music'}
-                      </button>
-                    )}
-                    
-                    {appleMusicStatus === 'unavailable' && (
-                      <div className="text-sm text-gray-500 p-2 bg-gray-100 rounded">
-                        Apple Music not available (backend configuration needed)
-                      </div>
-                    )}
-                    
-                    {appleMusicStatus === 'checking' && (
-                      <div className="text-sm text-gray-500 p-2">
-                        Checking Apple Music availability...
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="text-center space-y-2">
-                    {accessToken && (
-                      <div>
-                        <p className="text-green-600 font-medium">✅ Connected to Spotify</p>
-                        <button
-                          onClick={logout}
-                          className="text-sm text-gray-600 mt-1"
-                          style={{ background: 'none', border: 'none', padding: '0', cursor: 'pointer' }}
-                        >
-                          Logout
-                        </button>
-                      </div>
-                    )}
-                    
-                    {appleMusicToken && (
-                      <div>
-                        <p className="text-green-600 font-medium">✅ Connected to Apple Music</p>
-                        <button
-                          onClick={logoutAppleMusic}
-                          className="text-sm text-gray-600 mt-1"
-                          style={{ background: 'none', border: 'none', padding: 'O', cursor: 'pointer' }}
-                        >
-                          Logout
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <label className="block text-gray-700 text-sm font-medium mb-2">
-                      Enter an artist name
-                    </label>
-                    <div className="relative">
-                      <input
-                        ref={inputRef}
-                        key="artist-input"
-                        type="text"
-                        value={artist}
-                        onChange={handleArtistChange}
-                        onKeyDown={handleKeyDown}
-                        onBlur={handleBlur}
-                        onFocus={handleFocus}
-                        placeholder="Artist Name"
-                        disabled={loading}
-                        autoComplete="off"
-                        className="w-full p-3 border border-gray-300 rounded-lg outline-none transition-all duration-150 ease-in-out focus:border-teal-600 focus:shadow-sm"
-                      />
-                      
-                      {isSearching && (
-                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600"></div>
-                        </div>
-                      )}
-                      
-                      {showSuggestions && suggestions.length > 0 && (
-                        <ul className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
-                          {suggestions.map((artist, index) => (
-                            <li
-                              key={artist.id || index}
-                              className={`px-4 py-3 cursor-pointer transition-colors ${
-                                index === selectedIndex 
-                                  ? 'bg-teal-50 text-teal-800' 
-                                  : 'hover:bg-gray-50'
-                              } ${index === 0 ? 'rounded-t-lg' : ''} ${
-                                index === suggestions.length - 1 ? 'rounded-b-lg' : 'border-b border-gray-100'
-                              }`}
-                              onClick={() => handleSelectArtist(artist)}
-                            >
-                              <div className="font-medium">{artist.name}</div>
-                              {artist.disambiguation && (
-                                <div className="text-sm text-gray-500 mt-1">
-                                  {artist.disambiguation}
-                                </div>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <button
-                    onClick={searchSetlists}
-                    disabled={loading || !artist.trim()}
-                    className="w-full btn-primary"
-                  >
-                    SUBMIT
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-gray-200 mt-8 pt-6 text-center text-sm text-gray-600">
-              <p>Made by <strong>Elli Rego</strong> using <strong>Setlist.fm</strong>,</p>
-              <p><strong>Spotify</strong>, and <strong>Apple Music</strong> APIs.</p>
-              <div className="mt-2">
-                <a href="#" className="text-teal-600">Attributions</a>
-                <span className="mx-2">•</span>
-                <a href="#" className="text-teal-600">Feedback?</a>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center p-8 bg-white-95 backdrop-blur-sm rounded-2xl shadow-xl max-w-md mx-auto relative z-10">
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">Cannot connect to backend</h3>
-            <p className="text-gray-600">Please make sure the backend server is running and accessible.</p>
-          </div>
-        )}
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative">
-      <BackgroundPattern />
-      <div className="text-center p-8 bg-white-95 backdrop-blur-sm rounded-2xl shadow-xl max-w-md mx-auto relative z-10">
-        <p>View: {currentView}</p>
-        <button onClick={handleBackToHome} className="mt-4 btn-primary">Back to Home</button>
+    <div className="min-h-screen bg-gradient-to-br from-purple-400 via-pink-500 to-red-500">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-md mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
+          <div className="p-8">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2 text-center">
+              Setlist Playlist Generator
+            </h1>
+            <p className="text-gray-600 text-center mb-6">
+              Turn concert setlists into playlists
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="artist" className="block text-sm font-medium text-gray-700 mb-2">
+                  Artist Name
+                </label>
+                <ArtistAutocomplete
+                  value={artistName}
+                  onChange={setArtistName}
+                  onSelect={handleArtistSelect}
+                  placeholder="Try typing 'kruangbin' or 'beatlees'..."
+                  className="mb-4"
+                />
+                {selectedArtist && (
+                  <div className="text-sm text-green-600 mb-2 flex items-center space-x-2">
+                    <span>✓ Selected: {selectedArtist.name}</span>
+                    {selectedArtist.verified && (
+                      <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
+                        Has Setlists
+                      </span>
+                    )}
+                    {selectedArtist.disambiguation && (
+                      <span className="text-gray-500">({selectedArtist.disambiguation})</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                  {error}
+                </div>
+              )}
+
+              {success && (
+                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+                  {success}
+                </div>
+              )}
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => handleCreatePlaylist('spotify')}
+                  disabled={loading}
+                  className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  {loading ? 'Creating...' : 'Create Spotify Playlist'}
+                </button>
+
+                <button
+                  onClick={() => handleCreatePlaylist('apple')}
+                  disabled={loading}
+                  className="flex-1 bg-gray-800 hover:bg-gray-900 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  {loading ? 'Creating...' : 'Create Apple Music Playlist'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

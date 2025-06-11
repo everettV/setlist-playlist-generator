@@ -1,4 +1,4 @@
-# Project Context Export - Tue Jun 10 00:49:15 PDT 2025
+# Project Context Export - Tue Jun 10 20:59:20 PDT 2025
 
 ## Project Structure
 ```
@@ -46,22 +46,19 @@
 ## Git Status
 ```
  M AI_CONTEXT.md
- M context_generator.sh
+ M PROJECT_CONTEXT.md
+ M backend/src/server.ts
+ M backend/src/server.ts.backup
  M frontend/src/pages/Home.tsx
-?? PROJECT_CONTEXT.md
-?? ROADMAP.md
-?? ai_chat_prep.sh
-?? check_files.sh
-?? context_advisor.sh
-?? file_requirements.json
-?? start_dev_session.sh
-?? tasks.md
-?? update_context_for_ai.sh
-?? update_roadmap.sh
+?? backend/server.ts
+?? backend/src/services/setlistService.ts
+?? frontend/src/pages/Home.tsx.bak
+?? frontend/src/utils/
 ```
 
 ## Recent Commits
 ```
+f8e7aaf fixed playlist view
 8772864 lotsa fixes
 344d5fb Initial setup
 6c8e0b4 fixed input, and various configs
@@ -71,7 +68,6 @@ bac613a Fix Apple Music with proper jsonwebtoken imports
 0ef244d Apple Music api up & running
 dd3458e fix keystroke issue on artist input
 3f47f38 fix keystroke issue on artist input
-bf02ac6 fix keystroke issue on artist input
 ```
 
 

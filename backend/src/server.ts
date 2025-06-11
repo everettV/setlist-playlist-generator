@@ -267,6 +267,49 @@ app.get('/api/setlist/search', async (req: Request, res: Response) => {
   }
 });
 
+app.get('/api/artist/search', async (req: Request, res: Response) => {
+  try {
+    const { q } = req.query;
+    
+    if (!q || typeof q !== 'string') {
+      return res.status(400).json({ error: 'Query parameter "q" is required' });
+    }
+
+    console.log('🔍 Searching artists for:', q);
+    
+    const response = await axios.get(`https://api.setlist.fm/rest/1.0/search/artists`, {
+      params: {
+        artistName: q.trim(),
+        p: 1,
+        sort: 'relevance'
+      },
+      headers: {
+        'x-api-key': process.env.SETLISTFM_API_KEY,
+        'Accept': 'application/json'
+      }
+    });
+
+    const artists = response.data.artist || [];
+    
+    const formattedArtists = artists.slice(0, 10).map((artist: any) => ({
+      id: artist.mbid,
+      name: artist.name,
+      disambiguation: artist.disambiguation || '',
+      sortName: artist.sortName || artist.name
+    }));
+
+    console.log('✅ Found artists:', formattedArtists.length);
+    res.json(formattedArtists);
+    
+  } catch (error: any) {
+    console.error('❌ Artist search failed:', error.response?.data || error.message);
+    res.status(500).json({ 
+      error: 'Failed to search artists', 
+      message: error.response?.data?.message || error.message 
+    });
+  }
+});
+
 app.post('/api/playlist/create', async (req: Request, res: Response) => {
   try {
     const { accessToken, setlist } = req.body;
@@ -358,137 +401,4 @@ app.post('/api/playlist/create', async (req: Request, res: Response) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🔗 Environment: ${isProduction ? 'Production' : 'Development'}`);
-});
-
-// Artist search endpoint for autocompletion
-app.get('/api/artist/search', async (req: Request, res: Response) => {
-  try {
-    const { q, limit = 10 } = req.query;
-    
-    if (!q || typeof q !== 'string' || q.trim().length < 2) {
-      return res.json([]);
-    }
-    
-    console.log('🔍 Searching artists for:', q);
-    
-    const response = await axios.get(`https://api.setlist.fm/rest/1.0/search/artists`, {
-      params: {
-        artistName: q.trim(),
-        p: 1,
-        sort: 'relevance'
-      },
-      headers: {
-        'x-api-key': process.env.SETLISTFM_API_KEY,
-        'Accept': 'application/json'
-      }
-    });
-
-    const artists = response.data.artist || [];
-    
-    // Format artists for autocomplete dropdown
-    const formattedArtists = artists.slice(0, Number(limit)).map((artist: any) => ({
-      id: artist.mbid,
-      name: artist.name,
-      disambiguation: artist.disambiguation || '',
-      sortName: artist.sortName || artist.name
-    }));
-
-    console.log('✅ Found artists:', formattedArtists.length);
-    res.json(formattedArtists);
-    
-  } catch (error: any) {
-    console.error('❌ Artist search failed:', error.response?.data || error.message);
-    res.status(500).json({ 
-      error: 'Failed to search artists', 
-      message: error.response?.data?.message || error.message 
-    });
-  }
-});
-
-// Artist search endpoint for autocompletion
-app.get('/api/artist/search', async (req: Request, res: Response) => {
-  try {
-    const { q, limit = 10 } = req.query;
-    
-    if (!q || typeof q !== 'string' || q.trim().length < 2) {
-      return res.json([]);
-    }
-    
-    console.log('🔍 Searching artists for:', q);
-    
-    const response = await axios.get(`https://api.setlist.fm/rest/1.0/search/artists`, {
-      params: {
-        artistName: q.trim(),
-        p: 1,
-        sort: 'relevance'
-      },
-      headers: {
-        'x-api-key': process.env.SETLISTFM_API_KEY,
-        'Accept': 'application/json'
-      }
-    });
-
-    const artists = response.data.artist || [];
-    
-    // Format artists for autocomplete dropdown
-    const formattedArtists = artists.slice(0, Number(limit)).map((artist: any) => ({
-      id: artist.mbid,
-      name: artist.name,
-      disambiguation: artist.disambiguation || '',
-      sortName: artist.sortName || artist.name
-    }));
-
-    console.log('✅ Found artists:', formattedArtists.length);
-    res.json(formattedArtists);
-    
-  } catch (error: any) {
-    console.error('❌ Artist search failed:', error.response?.data || error.message);
-    res.status(500).json({ 
-      error: 'Failed to search artists', 
-      message: error.response?.data?.message || error.message 
-    });
-  }
-});
-
-app.get('/api/artist/search', async (req: Request, res: Response) => {
-  try {
-    const { q, limit = 10 } = req.query;
-    
-    if (!q || typeof q !== 'string' || q.trim().length < 2) {
-      return res.json([]);
-    }
-    
-    console.log('Searching artists for:', q);
-    
-    const response = await axios.get(`https://api.setlist.fm/rest/1.0/search/artists`, {
-      params: {
-        artistName: q.trim(),
-        p: 1,
-        sort: 'relevance'
-      },
-      headers: {
-        'x-api-key': process.env.SETLISTFM_API_KEY,
-        'Accept': 'application/json'
-      }
-    });
-
-    const artists = response.data.artist || [];
-    
-    const formattedArtists = artists.slice(0, Number(limit)).map((artist: any) => ({
-      id: artist.mbid,
-      name: artist.name,
-      disambiguation: artist.disambiguation || '',
-      sortName: artist.sortName || artist.name
-    }));
-
-    console.log('Found artists:', formattedArtists.length);
-    res.json(formattedArtists);
-    
-  } catch (error: any) {
-    console.error('Artist search failed:', error.response?.data || error.message);
-    res.status(500).json({ 
-      error: 'Failed to search artists', 
-      message: error.response?.data?.message || error.message 
-    });
-  }
 });
