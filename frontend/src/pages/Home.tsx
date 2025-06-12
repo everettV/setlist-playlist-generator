@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import ArtistAutocomplete from '../components/ArtistAutocomplete';
+import { useNavigate } from 'react-router-dom';
+import MockArtistAutocomplete from '../components/MockArtistAutocomplete';
+import Sidebar from '../components/Sidebar';
+import SetlistWizard from '../components/SetlistWizard';
 
 interface Artist {
   mbid: string;
@@ -36,13 +39,22 @@ const Home: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [activeTab, setActiveTab] = useState('sets');
+  const [showWizard, setShowWizard] = useState(false);
+  const [wizardPlatform, setWizardPlatform] = useState<'spotify' | 'apple'>('spotify');
   const [accessToken, setAccessToken] = useState<string | null>(
     localStorage.getItem('spotify_access_token')
   );
+  const navigate = useNavigate();
 
   const handleArtistSelect = (artist: Artist) => {
     setSelectedArtist(artist);
     setError('');
+    // Automatically open wizard when artist is selected
+    // Default to Spotify if user has token, otherwise Apple Music
+    const platform = accessToken ? 'spotify' : 'apple';
+    setWizardPlatform(platform);
+    setShowWizard(true);
   };
 
   const handleSpotifyLogin = async () => {
@@ -71,57 +83,24 @@ const Home: React.FC = () => {
   const logout = () => {
     localStorage.removeItem('spotify_access_token');
     localStorage.removeItem('spotify_refresh_token');
+    localStorage.removeItem('apple_music_token');
     setAccessToken(null);
     setSuccess('');
     setError('');
-    console.log('🎵 Logged out of Spotify');
+    navigate('/');
+    console.log('🎵 Logged out');
   };
 
-  const handleCreatePlaylist = async (platform: 'spotify' | 'apple') => {
-    if (!artistName.trim()) {
-      setError('Please enter an artist name');
-      return;
-    }
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    // For now, we'll just show placeholder content for other tabs
+  };
 
-    if (platform === 'spotify' && !accessToken) {
-      setError('Please login to Spotify first');
-      return;
-    }
 
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      const apiUrl = window.location.hostname === 'localhost' 
-        ? 'http://localhost:3001' 
-        : 'https://setlist-playlist-generator.onrender.com';
-        
-      const response = await fetch(`${apiUrl}/api/create-playlist`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          artistName: artistName.trim(),
-          platform,
-          artistMbid: selectedArtist?.mbid,
-          accessToken: platform === 'spotify' ? accessToken : undefined
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create playlist');
-      }
-
-      setSuccess(`🎉 ${platform === 'spotify' ? 'Spotify' : 'Apple Music'} playlist created! Found ${data.tracksAdded}/${data.totalSongs} songs. ${data.notFoundSongs?.length > 0 ? `(${data.notFoundSongs.length} songs not found)` : ''}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
+  const handleWizardComplete = () => {
+    setSuccess('🎉 Playlist created successfully!');
+    setArtistName('');
+    setSelectedArtist(null);
   };
 
   // Clear success message after 5 seconds
@@ -132,157 +111,114 @@ const Home: React.FC = () => {
     }
   }, [success]);
 
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'sets':
+        return (
+          <div className="space-y-6">
+            {/* Header Section */}
+            <div>
+              <h1 className="text-3xl lg:text-4xl font-bold text-gray-800 mb-2">Find Live Music</h1>
+              <p className="text-gray-600 text-lg">Search for any artist to discover their setlists and create playlists</p>
+            </div>
+
+            {/* Search Section */}
+            <div className="bg-white-95 backdrop-blur-sm rounded-2xl shadow-xl p-6 lg:p-8">
+              <div className="max-w-2xl mx-auto">
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800 mb-2">Start Your Search</h2>
+                  <p className="text-gray-600">Type an artist name to explore their live performances</p>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <MockArtistAutocomplete
+                      value={artistName}
+                      onChange={setArtistName}
+                      onSelect={handleArtistSelect}
+                      placeholder="Search for an artist..."
+                      className="text-lg p-4 rounded-xl border-2 border-gray-200 focus:border-teal-500 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 mt-4 fade-in">
+                    <div className="flex items-center">
+                      <span className="text-red-500 text-xl mr-3">⚠️</span>
+                      <p className="text-red-700 font-medium">{error}</p>
+                    </div>
+                  </div>
+                )}
+
+                {success && (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4 mt-4 fade-in">
+                    <div className="flex items-center">
+                      <span className="text-green-500 text-xl mr-3">✅</span>
+                      <p className="text-green-700 font-medium">{success}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+          </div>
+        );
+      case 'concerts':
+        return (
+          <div className="bg-white-95 backdrop-blur-sm rounded-2xl shadow-xl p-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Concerts</h2>
+            <p className="text-gray-600">Your saved concerts and upcoming shows will appear here.</p>
+          </div>
+        );
+      case 'festivals':
+        return (
+          <div className="bg-white-95 backdrop-blur-sm rounded-2xl shadow-xl p-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Festivals</h2>
+            <p className="text-gray-600">Festival lineups and multi-artist playlists will appear here.</p>
+          </div>
+        );
+      case 'account':
+        return (
+          <div className="bg-white-95 backdrop-blur-sm rounded-2xl shadow-xl p-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Account Settings</h2>
+            <p className="text-gray-600">Manage your account preferences and connections.</p>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative">
+    <div className="min-h-screen relative">
       <BackgroundPattern />
       
-      <div className="w-full max-w-md mx-auto bg-white-95 backdrop-blur-sm rounded-2xl shadow-xl p-8 relative z-10">
-        <div className="text-center mb-8">
-          <HeadphonesLogo className="w-16 h-16 mx-auto mb-4 text-gray-800" />
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">🎵 Setlist Playlist Generator</h1>
-          <p className="text-gray-600">
-            Create Spotify playlists from concert setlists
-          </p>
+      <Sidebar 
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        onLogout={logout}
+      />
+      
+      <main className="lg:ml-60 min-h-screen overflow-y-auto p-4 lg:p-8 pt-20 lg:pt-8 relative z-10">
+        <div className="max-w-4xl mx-auto">
+          {renderTabContent()}
         </div>
+      </main>
 
-        <div className="border-t border-gray-200 pt-8">
-          {!accessToken ? (
-            <div className="text-center space-y-6">
-              <p className="text-gray-600">Connect your Spotify account to create playlists</p>
-              <button
-                onClick={handleSpotifyLogin}
-                disabled={loading}
-                className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 disabled:transform-none shadow-lg"
-              >
-                {loading ? (
-                  <span className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Connecting...
-                  </span>
-                ) : (
-                  '🎵 Demo Login (Spotify)'
-                )}
-              </button>
-              <p className="text-xs text-gray-500">
-                Demo mode - simulates Spotify connection for testing
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="text-center">
-                <p className="text-green-600 font-medium">✅ Connected to Spotify (Demo Mode)</p>
-                <button
-                  onClick={logout}
-                  className="text-sm text-gray-600 mt-2 hover:text-gray-800 transition-colors"
-                  style={{ background: 'none', border: 'none', padding: '0', cursor: 'pointer' }}
-                >
-                  Logout
-                </button>
-              </div>
-              
-              <div>
-                <label className="block text-gray-700 text-sm font-medium mb-2">
-                  Artist Name
-                </label>
-                <ArtistAutocomplete
-                  value={artistName}
-                  onChange={setArtistName}
-                  onSelect={handleArtistSelect}
-                  placeholder="Search for an artist..."
-                  className="mb-2"
-                />
-                {selectedArtist && (
-                  <div className="text-sm text-green-600 mb-2 flex items-center space-x-2">
-                    <span>✓ Selected: <strong>{selectedArtist.name}</strong></span>
-                    {selectedArtist.verified && (
-                      <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
-                        Has Setlists
-                      </span>
-                    )}
-                    {selectedArtist.disambiguation && (
-                      <span className="text-gray-500 text-xs">({selectedArtist.disambiguation})</span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {error && (
-                <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <span className="text-red-400">⚠️</span>
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-sm text-red-700">{error}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {success && (
-                <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <span className="text-green-400">✅</span>
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-sm text-green-700">{success}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-3">
-                <button
-                  onClick={() => handleCreatePlaylist('spotify')}
-                  disabled={loading || !artistName.trim()}
-                  className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 disabled:transform-none shadow-lg"
-                >
-                  {loading ? (
-                    <span className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Creating Playlist...
-                    </span>
-                  ) : (
-                    '🎵 Create Spotify Playlist'
-                  )}
-                </button>
-
-                <button
-                  onClick={() => handleCreatePlaylist('apple')}
-                  disabled={loading || !artistName.trim()}
-                  className="w-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 disabled:transform-none shadow-lg"
-                >
-                  {loading ? (
-                    <span className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Creating Playlist...
-                    </span>
-                  ) : (
-                    '🍎 Create Apple Music Playlist'
-                  )}
-                </button>
-              </div>
-
-              <div className="text-center text-xs text-gray-500 mt-6">
-                <p>Try searching: "khruangbin", "led zep", or "beatlees"</p>
-                <p className="mt-1">✨ Fuzzy search handles typos and partial matches</p>
-                <p className="mt-2 text-orange-600">Demo mode - using mock data for playlist creation</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-gray-200 mt-8 pt-6 text-center text-sm text-gray-600">
-          <p>Made by <strong>Elli Rego</strong> using <strong>Setlist.fm</strong>,</p>
-          <p><strong>Spotify</strong>, and <strong>Apple Music</strong> APIs.</p>
-          <div className="mt-2">
-            <a href="#" className="text-teal-600">Attributions</a>
-            <span className="mx-2">•</span>
-            <a href="#" className="text-teal-600">Feedback?</a>
-          </div>
-        </div>
-      </div>
+      {/* Setlist Wizard */}
+      {showWizard && (
+        <SetlistWizard
+          artistName={selectedArtist?.name || artistName}
+          platform={wizardPlatform}
+          onClose={() => setShowWizard(false)}
+          onComplete={handleWizardComplete}
+          connectedServices={{
+            spotify: !!accessToken,
+            apple: !!localStorage.getItem('apple_music_token')
+          }}
+        />
+      )}
     </div>
   );
 };
