@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Callback from './pages/Callback';
+import MusicKitService from './services/MusicKitService';
 import './App.css';
 
 interface AuthState {
@@ -19,7 +20,10 @@ function App() {
   useEffect(() => {
     // Check for existing auth tokens on mount
     const spotifyToken = localStorage.getItem('spotify_access_token');
-    const appleToken = localStorage.getItem('apple_music_token');
+    
+    // Check for Apple Music user token
+    const musicKit = MusicKitService.getInstance();
+    const appleUserToken = musicKit.getUserToken();
     
     if (spotifyToken) {
       setAuth({
@@ -27,11 +31,11 @@ function App() {
         platform: 'spotify',
         token: spotifyToken
       });
-    } else if (appleToken) {
+    } else if (appleUserToken) {
       setAuth({
         isAuthenticated: true,
         platform: 'apple',
-        token: appleToken
+        token: appleUserToken
       });
     }
   }, []);
@@ -44,13 +48,28 @@ function App() {
     });
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('spotify_access_token');
-    localStorage.removeItem('spotify_refresh_token');
-    localStorage.removeItem('apple_music_token');
-    setAuth({
-      isAuthenticated: false
-    });
+  const handleLogout = async () => {
+    try {
+      // Clean up Spotify tokens
+      localStorage.removeItem('spotify_access_token');
+      localStorage.removeItem('spotify_refresh_token');
+      
+      // Sign out from Apple Music using MusicKit
+      const musicKit = MusicKitService.getInstance();
+      await musicKit.signOut();
+      
+      setAuth({
+        isAuthenticated: false
+      });
+      
+      console.log('✅ User logged out successfully');
+    } catch (error) {
+      console.error('❌ Logout error:', error);
+      // Still update auth state even if logout fails
+      setAuth({
+        isAuthenticated: false
+      });
+    }
   };
 
   return (

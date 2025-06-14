@@ -1,13 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-
-interface Artist {
-  mbid: string;
-  name: string;
-  sortName: string;
-  disambiguation?: string;
-  source?: 'musicbrainz' | 'setlistfm';
-  verified?: boolean;
-}
+import { OptimalArtistSearch, SearchResult } from '../services/OptimalArtistSearch';
+import { Artist } from '../services/ClientArtistSearch';
 
 interface MockArtistAutocompleteProps {
   value: string;
@@ -40,55 +33,41 @@ const MockArtistAutocomplete: React.FC<MockArtistAutocompleteProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Mock data for testing
-  const mockArtists: Artist[] = [
-    { mbid: '1', name: 'Taylor Swift', sortName: 'Swift, Taylor', verified: true },
-    { mbid: '2', name: 'Ed Sheeran', sortName: 'Sheeran, Ed', verified: true },
-    { mbid: '3', name: 'Coldplay', sortName: 'Coldplay', verified: true },
-    { mbid: '4', name: 'Radiohead', sortName: 'Radiohead', verified: true },
-    { mbid: '5', name: 'Arctic Monkeys', sortName: 'Arctic Monkeys', verified: true },
-    { mbid: '6', name: 'The Beatles', sortName: 'Beatles, The', verified: true },
-    { mbid: '7', name: 'Queen', sortName: 'Queen', verified: true },
-    { mbid: '8', name: 'Pink Floyd', sortName: 'Pink Floyd', verified: true },
-    { mbid: '9', name: 'The Rolling Stones', sortName: 'Rolling Stones, The', verified: true },
-    { mbid: '10', name: 'Led Zeppelin', sortName: 'Led Zeppelin', verified: true },
-    { mbid: '11', name: 'Billie Eilish', sortName: 'Eilish, Billie', verified: true },
-    { mbid: '12', name: 'Harry Styles', sortName: 'Styles, Harry', verified: true },
-    { mbid: '13', name: 'Dua Lipa', sortName: 'Lipa, Dua', verified: true },
-    { mbid: '14', name: 'The Weeknd', sortName: 'Weeknd, The', verified: true },
-    { mbid: '15', name: 'Olivia Rodrigo', sortName: 'Rodrigo, Olivia', verified: true }
-  ];
+  const searchService = useRef(new OptimalArtistSearch());
 
   const debouncedSearch = useRef(
-    debounce((query: string) => {
-      if (query.length < 2) {
+    debounce(async (query: string) => {
+      try {
+        setIsLoading(true);
+        
+        // Use the optimal search service
+        const result = await searchService.current.search(query);
+        
+        setSuggestions(result.artists);
+        setSearchResult(result);
+        setShowDropdown(result.artists.length > 0);
+        setHighlightedIndex(-1);
+      } catch (error) {
+        console.error('Search error:', error);
         setSuggestions([]);
         setShowDropdown(false);
-        return;
-      }
-
-      setIsLoading(true);
-      
-      // Filter mock artists based on query
-      const filteredArtists = mockArtists.filter(artist => 
-        artist.name.toLowerCase().includes(query.toLowerCase())
-      );
-
-      // Simulate API delay
-      setTimeout(() => {
-        setSuggestions(filteredArtists);
-        setShowDropdown(filteredArtists.length > 0);
-        setHighlightedIndex(-1);
+      } finally {
         setIsLoading(false);
-      }, 300);
+      }
     }, 300)
   ).current;
 
   useEffect(() => {
-    debouncedSearch(value);
+    if (value.length > 0) {
+      debouncedSearch(value);
+    } else {
+      setSuggestions([]);
+      setShowDropdown(false);
+      setSearchResult(null);
+    }
   }, [value, debouncedSearch]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -132,8 +111,9 @@ const MockArtistAutocomplete: React.FC<MockArtistAutocompleteProps> = ({
     onChange(e.target.value);
   };
 
-  const handleInputFocus = () => {
-    if (suggestions.length > 0) {
+  const handleInputFocus = async () => {
+    // Only show dropdown if there are suggestions from typing
+    if (value.length > 0 && suggestions.length > 0) {
       setShowDropdown(true);
     }
   };
@@ -173,6 +153,8 @@ const MockArtistAutocomplete: React.FC<MockArtistAutocompleteProps> = ({
           ref={dropdownRef}
           className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto"
         >
+          
+          {/* Artist results */}
           {suggestions.map((artist, index) => (
             <div
               key={artist.mbid}
@@ -180,27 +162,22 @@ const MockArtistAutocomplete: React.FC<MockArtistAutocompleteProps> = ({
                 index === highlightedIndex 
                   ? 'bg-teal-50 text-teal-800' 
                   : 'hover:bg-gray-50'
-              } ${index === 0 ? 'rounded-t-lg' : ''} ${
+              } ${
                 index === suggestions.length - 1 ? 'rounded-b-lg' : 'border-b border-gray-100'
               }`}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSelectArtist(artist)}
               onMouseEnter={() => setHighlightedIndex(index)}
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium">{artist.name}</div>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <div className="font-medium">
+                    {artist.name}
+                  </div>
                   {artist.disambiguation && (
                     <div className="text-sm text-gray-500 mt-1">
                       {artist.disambiguation}
                     </div>
-                  )}
-                </div>
-                <div className="flex items-center space-x-1">
-                  {artist.verified && (
-                    <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
-                      Has Setlists
-                    </span>
                   )}
                 </div>
               </div>

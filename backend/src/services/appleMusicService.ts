@@ -1,6 +1,5 @@
 import { sign } from 'jsonwebtoken';
 import { readFileSync, existsSync } from 'fs';
-import fetch from 'node-fetch';
 
 export class AppleMusicService {
   private privateKey: string;
@@ -60,14 +59,31 @@ export class AppleMusicService {
     const payload = {
       iss: this.teamId,
       iat: now,
-      exp: now + 15778800, // 6 months
+      exp: now + 7776000, // 3 months instead of 6 (more conservative)
     };
+
+    console.log('🍎 Token payload:', { 
+      teamId: this.teamId, 
+      keyId: this.keyId, 
+      iat: payload.iat, 
+      exp: payload.exp 
+    });
 
     try {
       const token = sign(payload, this.privateKey, {
         algorithm: 'ES256',
         keyid: this.keyId,
       });
+      
+      console.log('🍎 Generated token preview:', token.substring(0, 50) + '...' + token.substring(token.length - 20));
+      
+      // Decode token to verify contents (just for debugging)
+      try {
+        const decoded = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+        console.log('🍎 Decoded token payload:', decoded);
+      } catch (decodeError) {
+        console.log('🍎 Could not decode token for verification');
+      }
       
       console.log('🍎 Apple Music developer token generated successfully');
       return token;

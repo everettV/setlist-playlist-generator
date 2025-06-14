@@ -1,2 +1,0 @@
-#!/bin/bash
-./scripts/start_dev_session.sh "$@"

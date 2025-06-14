@@ -9,21 +9,16 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, onLogout }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const tabs = [
-    { id: 'sets', label: 'Sets', icon: '🎵' },
-    { id: 'concerts', label: 'Concerts', icon: '🎤' },
-    { id: 'festivals', label: 'Festivals', icon: '🎪' },
-    { id: 'account', label: 'Account', icon: '⚙️' }
+    { id: 'artists', label: 'Artists', icon: '🎨' }
   ];
 
   // Get user data from localStorage and auth state
-  const spotifyToken = localStorage.getItem('spotify_access_token');
   const appleToken = localStorage.getItem('apple_music_token');
   
   const user = {
     name: 'Music Fan',
     initials: 'MF',
     connectedServices: {
-      spotify: !!spotifyToken,
       apple: !!appleToken
     }
   };
